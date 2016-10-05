@@ -45,6 +45,7 @@ public class VCFManager {
 		
 		int ct = 0;
 		String chrom="";
+		int prevPos=0;
 		int pos = 0;
 		int depth = 0;// depth
 		int bcA = 0;
@@ -58,29 +59,29 @@ public class VCFManager {
 		int sv;// structural variance (boolean)
 		int svLength;// length of the sv
 		int end;
+		Boolean isPloidySolved=false;
 		int ploidy=0;
 		String ref = "";// reference allele
 		String alt=".";// alternative allele
-		//System.out.println("POS" + "\t" + "REF" + "\t" + "ALT" + "\t" + "FILTER" + "\t" + "INFO");
-		List<String> formatSample;
+		List<String> infoFields;
 		List<String> baseCalls;
 		List<String> qPercentages;
+		String format="GT";
+		String sample="";
 		String nextFilter;
 		String currentHumanLine = "";
 		String previousHumanLine = "";
-		ArrayList<Integer> currentMatrixLine;
-		ArrayList<Integer> previousMatrixLine = new ArrayList<Integer>(16);
+
 		String next;
 		try {
 			// skip the header			
 			do{
 				line = sc.nextLine();
 				System.out.println(line);
-				//next=sc.next();
-			}while (line.substring(0, 1).equals("#")); 
-			next=sc.next();
+				next=sc.next();
+			}while (next.substring(0, 1).equals("#")); 
 			chrom=next;
-
+			
 			//get the values
 			while (sc.hasNextLine() /* && ct < 34000 */) {
 				next=sc.next();				
@@ -92,12 +93,25 @@ public class VCFManager {
 				nextFilter = sc.next();// get the filter call. Ambiguous and
 				// Deletions are the interesting ones
 
-				formatSample = Arrays.asList(sc.next().split(";"));// split all
+				infoFields = Arrays.asList(sc.next().split(";"));// split all
 				// fields in
 				// the info
 				// line
-
-				if (!formatSample.get(0).substring(0, 2).equals("DP")) {// Special vcf line ("STRUCTURAL VARIATION" )
+				format=sc.next();
+				
+				if (!isPloidySolved ){
+					ploidy=(int) PloidyPhaser.ploidies.get(chrom);
+					isPloidySolved=true;
+				}
+				sample=sc.next();
+				
+				if( ploidy>2){
+					for (int p=2;p<ploidy;p++){
+						sample+="/0";
+					}
+				}
+				
+				if (!infoFields.get(0).substring(0, 2).equals("DP")) {// Special vcf line ("STRUCTURAL VARIATION" )
 					//System.out.println("SV");
 					depth = 0;
 					bcA = 0;
@@ -109,15 +123,17 @@ public class VCFManager {
 					qpG = 0;
 					qpT = 0;
 					sv = 1;
-					svLength = Integer.parseInt(formatSample.get(1).substring(6, formatSample.get(1).length())) ;
-					end=Integer.parseInt(formatSample.get(2).substring(4, formatSample.get(2).length())) ;
-					System.out.println("pos:"+pos+" SV formatSample.get(2):"+formatSample+ " LENGTH:" + svLength);
+					svLength = Integer.parseInt(infoFields.get(1).substring(6, infoFields.get(1).length())) ;
+					end=Integer.parseInt(infoFields.get(2).substring(4, infoFields.get(2).length())) ;
+					
+					System.out.println("pos:"+pos+" SV infoFields:"+infoFields+ " LENGTH:" + svLength+" FORMAT:"+format);
 					currentHumanLine = chrom+"\t" + pos + "\t.\t"+ ref + "\t" + alt + "\t" + nextFilter + "\tSVTYPE="
-							+ formatSample.get(0) + ";SVLEN=" + svLength+";END="+end+"\tGT\t";
+							+ infoFields.get(0) + ";SVLEN=" + svLength+";END="+end+"\t"+format+"\t"+sample;
+
 				} else {// ...regular vcf line
-					depth = Integer.parseInt(formatSample.get(0).substring(3, formatSample.get(0).length()));
+					depth = Integer.parseInt(infoFields.get(0).substring(3, infoFields.get(0).length()));
 					baseCalls = Arrays
-							.asList(formatSample.get(5).substring(3, formatSample.get(5).length()).split(","));
+							.asList(infoFields.get(5).substring(3, infoFields.get(5).length()).split(","));
 
 					bcA = Integer.parseInt(baseCalls.get(0));
 					bcC = Integer.parseInt(baseCalls.get(1));
@@ -125,7 +141,7 @@ public class VCFManager {
 					bcT = Integer.parseInt(baseCalls.get(3));
 
 					qPercentages = Arrays
-							.asList(formatSample.get(6).substring(3, formatSample.get(6).length()).split(","));
+							.asList(infoFields.get(6).substring(3, infoFields.get(6).length()).split(","));
 
 					qpA = Integer.parseInt(qPercentages.get(0));
 					qpC = Integer.parseInt(qPercentages.get(1));
@@ -133,66 +149,26 @@ public class VCFManager {
 					qpT = Integer.parseInt(qPercentages.get(3));
 					sv = 0;
 					svLength = 0;
-					currentHumanLine = chrom+"\t" + pos + "\t.\t"+ ref + "\t" + alt + "\t" + nextFilter + "\t"
-							+ formatSample.get(0).substring(3, formatSample.get(0).length()) + "\t"
-							+ formatSample.get(5).substring(3, formatSample.get(5).length()) + "\t"
-							+ formatSample.get(6).substring(3, formatSample.get(6).length());
-				}
-				/*
-				currentMatrixLine = new ArrayList<Integer>();
-				currentMatrixLine.add(chrom);//1
-				currentMatrixLine.add(pos);//2
-				currentMatrixLine.add(bitSequence(ref));//3
-				currentMatrixLine.add(bitSequence(alt));//4
-				currentMatrixLine.add(codeFilter(nextFilter));//5
-				currentMatrixLine.add(depth);//6
-				currentMatrixLine.add(bcA);//7
-				currentMatrixLine.add(bcC);//8
-				currentMatrixLine.add(bcG);//9
-				currentMatrixLine.add(bcT);//10
-				currentMatrixLine.add(qpA);//11
-				currentMatrixLine.add(qpC);//12
-				currentMatrixLine.add(qpG);//13
-				currentMatrixLine.add(qpT);//14
-
-				currentMatrixLine.add(sv);//15
-				currentMatrixLine.add(svLength);//16
-				*/
-				/*
-				// if deletion or ambiguous only
-				if (nextFilter.substring(0, 3).equals("Amb") || nextFilter.substring(0, 3).equals("Del")) {
-
-					codeFilter(nextFilter);
-					if (nextFilter.substring(0, 3).equals("Del")
-							&& !previousMatrixLine.equals(vcfMatrix.get(vcfMatrix.size() - 1))) {
-						// store the previous line avoiding repeats
-						vcfMatrix.add(previousMatrixLine);
-						humanLines.add(previousHumanLine);
+					currentHumanLine = chrom+"\t" + pos + "\t.\t"+ ref + "\t" + alt + "\t" + nextFilter + "\t";
+					for (int f=0;f<(infoFields.size()-2);f++){
+						currentHumanLine += infoFields.get(f)+";";
 					}
-					humanLines.add(currentHumanLine);
-					vcfMatrix.add(currentMatrixLine);
-				}*/
-				humanLines.add(currentHumanLine);
-				//vcfMatrix.add(currentMatrixLine);
-
-				//previousMatrixLine = currentMatrixLine;
+					currentHumanLine +=   infoFields.get(infoFields.size()-1)+"\t"+format+ "\t"+sample;
+				}
+				if(pos!=prevPos && prevPos!=0){
+					humanLines.add(previousHumanLine);
+				}
+				prevPos=pos;
 				previousHumanLine = currentHumanLine;
-
-
 
 				line = sc.nextLine();
 				if (sc.hasNextLine()) { // 'if' to avoid error at end of file
-					//String eraseme=sc.next().substring(5,11);
-					//System.out.println("sc.next():"+eraseme+":");
 					chrom=sc.next();// contig name 
-					//System.out.println("chrom:"+chrom);
 				}
 				ct++;
 			}
 
 			printHumanLines();
-			printVCFmatrix();
-
 
 			if (sc != null)
 				sc.close();

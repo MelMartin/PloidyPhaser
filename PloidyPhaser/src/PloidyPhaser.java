@@ -26,7 +26,7 @@ public class PloidyPhaser {
 				//n++;
 				line = sc.nextLine();
 				String[] parts=line.split("\\s+");
-				ploidies.put(parts[0],Integer.parseInt(parts[1]));
+				ploidies.put(parts[0],Integer.parseInt(parts[1]));//key:chromosome name/value:ploidy
 			}
 			
 			Stream<Path> paths = Files.walk(Paths.get(vcfFolder));
