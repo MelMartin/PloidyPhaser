@@ -9,14 +9,14 @@ import java.util.Scanner;
 
 
 public class VCFManager {
-	List<String> humanLines = new ArrayList<String>();
+	List<String> cleanLines = new ArrayList<String>();
 	String outputCleanFile="" ;
 
 
 	
 	public VCFManager(File vcfFile) throws FileNotFoundException, InterruptedException {//constructor from vcf file
 		//solve the paths
-		System.out.println("outputHumanFile:"+vcfFile.getParent()+"\\"+vcfFile.getName().substring(0, vcfFile.getName().lastIndexOf('.'))+"Clean.vcf");
+		System.out.println("outputCleanFile:"+vcfFile.getParent()+"\\"+vcfFile.getName().substring(0, vcfFile.getName().lastIndexOf('.'))+"Clean.vcf");
 		outputCleanFile = vcfFile.getParent()+"\\"+vcfFile.getName().substring(0, vcfFile.getName().lastIndexOf('.'))+"Clean.vcf";
 		
 		vcfExtractor(vcfFile.getAbsolutePath());	
@@ -25,68 +25,63 @@ public class VCFManager {
 	public void vcfExtractor(String inputFile) throws FileNotFoundException, InterruptedException {
 
 		
-		//outputMatrixFile = outputFileRoot  + "\\"+ endFix + "MatFileOut.txt";
-		//System.out.println("outputHumanFile" +outputHumanFile + "   outputMatrixFile" + outputMatrixFile );		
-		// We are interested in the 6th and 7th column:
-		// 6th="Count of As, Cs, Gs, Ts at locus"
-		// 7th="="Percentage of As, Cs, Gs, Ts weighted by Q & MQ at locus"
-		String line = "";
+		
+		String line="";
+		String header="";
 		Scanner sc = new Scanner(new File(inputFile));
 		
 		int ct = 0;
 		String chrom="";
 		int prevPos=0;
 		int pos = 0;
-		int depth = 0;// depth
-		int bcA = 0;
-		int bcC = 0;
-		int bcG = 0;
-		int bcT = 0;
-		int qpA = 0;
-		int qpC = 0;
-		int qpG = 0;
-		int qpT = 0;
-		int sv;// structural variance (boolean)
+
 		int svLength;// length of the sv
 		int end;
 		Boolean isPloidySolved=false;
 		int ploidy=0;
 		String ref = "";// reference allele
 		String alt=".";// alternative allele
-		List<String> infoFields;
-		List<String> baseCalls;
-		List<String> qPercentages;
+		List<String> infoFields=new ArrayList();
+
 		String format="GT";
 		String sample="";
 		String nextFilter;
-		String currentHumanLine = "";
-		String previousHumanLine = "";
+		String currentHumanLine = "*";
+		String previousHumanLine = "//>>";
 
-		String next;
+		String next="";
 		try {
-			// skip the header			
-			do{
-				line = sc.nextLine();
-				System.out.println(line);
-				next=sc.next();
-			}while (next.substring(0, 1).equals("#")); 
-			chrom=next;
+			// skip the header		
+			line=sc.nextLine();
+			while (line.substring(0, 1).equals("#")){				
+				header+=line ;	
+				line=sc.nextLine();				
+				if(line.substring(0, 1).equals("#"))header+="\n";
+				ct++;
+			}
+
+			cleanLines.add(header);
 			
+			//reset scaner after the header;
+			sc = new Scanner(new File(inputFile));
+			for(int l=0;l<ct;l++){
+				sc.nextLine();
+			}
+			ct=0;
+			chrom=sc.next();
+		
 			//get the values
 			while (sc.hasNextLine() /* && ct < 34000 */) {
-				next=sc.next();				
-				pos = Integer.parseInt(next);// get pos
+				
+				pos = Integer.parseInt(sc.next());	// get pos	
 				sc.next();// skip id
 				ref = sc.next();// get reference allele
 				alt = sc.next();// get alternative allele
 				sc.next();// skip qual
-				nextFilter = sc.next();// get the filter call. Ambiguous and
-				// Deletions are the interesting ones
-
+				nextFilter = sc.next();
+				
 				infoFields = Arrays.asList(sc.next().split(";"));// split all
-				// fields in
-				// the info
-				// line
+				// fields in the info line
 				format=sc.next();
 				
 				if (!isPloidySolved ){
@@ -101,18 +96,9 @@ public class VCFManager {
 					}
 				}
 				
+				
 				if (!infoFields.get(0).substring(0, 2).equals("DP")) {// Special vcf line ("STRUCTURAL VARIATION" )
-					//System.out.println("SV");
-					depth = 0;
-					bcA = 0;
-					bcC = 0;
-					bcG = 0;
-					bcT = 0;
-					qpA = 0;
-					qpC = 0;
-					qpG = 0;
-					qpT = 0;
-					sv = 1;
+
 					svLength = Integer.parseInt(infoFields.get(1).substring(6, infoFields.get(1).length())) ;
 					end=Integer.parseInt(infoFields.get(2).substring(4, infoFields.get(2).length())) ;
 					
@@ -121,53 +107,74 @@ public class VCFManager {
 							+ infoFields.get(0) + ";SVLEN=" + svLength+";END="+end+"\t"+format+"\t"+sample;
 
 				} else {// ...regular vcf line
-					depth = Integer.parseInt(infoFields.get(0).substring(3, infoFields.get(0).length()));
-					baseCalls = Arrays
-							.asList(infoFields.get(5).substring(3, infoFields.get(5).length()).split(","));
-
-					bcA = Integer.parseInt(baseCalls.get(0));
-					bcC = Integer.parseInt(baseCalls.get(1));
-					bcG = Integer.parseInt(baseCalls.get(2));
-					bcT = Integer.parseInt(baseCalls.get(3));
-
-					qPercentages = Arrays
-							.asList(infoFields.get(6).substring(3, infoFields.get(6).length()).split(","));
-
-					qpA = Integer.parseInt(qPercentages.get(0));
-					qpC = Integer.parseInt(qPercentages.get(1));
-					qpG = Integer.parseInt(qPercentages.get(2));
-					qpT = Integer.parseInt(qPercentages.get(3));
-					sv = 0;
+					
 					svLength = 0;
 					currentHumanLine = chrom+"\t" + pos + "\t.\t"+ ref + "\t" + alt + "\t" + nextFilter + "\t";
-					for (int f=0;f<(infoFields.size()-2);f++){
+					for (int f=0;f<(infoFields.size()-1);f++){
+						//System.out.println("f:"+f+infoFields.get(f));
 						currentHumanLine += infoFields.get(f)+";";
 					}
+					//System.out.println("ct:"+ct+" f:"+(infoFields.size()-1)+infoFields.get(infoFields.size()-1));
 					currentHumanLine +=   infoFields.get(infoFields.size()-1)+"\t"+format+ "\t"+sample;
+					
 				}
+				
 				if(pos!=prevPos && prevPos!=0){
-					humanLines.add(previousHumanLine);
+					cleanLines.add(previousHumanLine);
 				}
 				prevPos=pos;
 				previousHumanLine = currentHumanLine;
-
-				line = sc.nextLine();
-				if (sc.hasNextLine()) { // 'if' to avoid error at end of file
+				
+				//line = sc.nextLine();
+				if (sc.hasNextLine() ) { // 'if' to avoid error at end of file
+					currentHumanLine = sc.nextLine();
 					chrom=sc.next();// contig name 
+				}else {
+					cleanLines.add(previousHumanLine);//adds last line
+					//System.out.println("no next line at pos "+pos);
 				}
 				ct++;
+			
+				
 			}
-
-			printHumanLines();
+		
+			printCleanLines();
 
 			if (sc != null)
 				sc.close();
+			
 		} catch (Exception e) {
 			System.out.println("error at ct:" + ct + " pos:" + pos+" current:  "+currentHumanLine);
 		}
 
 	}
+	
 
+	public void printCleanLines() throws FileNotFoundException {
+
+		PrintStream stdout = System.out;
+		PrintStream myConsole = null;
+		
+		try {
+			myConsole = new PrintStream(new File(outputCleanFile));
+			System.setOut(myConsole);
+			for (int i = 0; i < cleanLines.size(); i++) {
+				System.out.println(cleanLines.get(i));
+			}
+			myConsole.close();
+		} catch (Exception e) {
+			System.err.println("Error trying to write outputHumanFile");
+			e.printStackTrace();
+		}  finally {
+			if (myConsole != null) {	        	
+				myConsole.close();
+				System.setOut(stdout);  
+			}
+		}
+		System.setOut(stdout);  
+	}
+	
+	
 	public int bitSequence(String s) {
 		char[] cseq = new char[s.length()];
 		int chASCII;
@@ -250,52 +257,6 @@ public class VCFManager {
 			num = -num;
 		return num;
 	}
-/*
-	public void printVCFmatrix() {
-		System.out.println("Destination path of outputMatrixFile: "+outputMatrixFile);
-		PrintStream stdout = System.out;
-		PrintStream myConsole = null;
-		try {
-			myConsole = new PrintStream(new File(outputMatrixFile));
-			System.setOut(myConsole);
-			for (int i = 0; i < vcfMatrix.size(); i++) {
-				System.out.println(vcfMatrix.get(i));
-			}
-			myConsole.close();
-		}  catch (Exception e) {
-			System.err.println("Error trying to write outputMatrixFile ");
-			e.printStackTrace();
-		}  finally {
-			if (myConsole != null) {	        	
-				myConsole.close();
-				System.setOut(stdout);  
-			}
-		}
-		System.setOut(stdout);  
-	}
-*/
-	public void printHumanLines() throws FileNotFoundException {
 
-		PrintStream stdout = System.out;
-		PrintStream myConsole = null;
-		
-		try {
-			myConsole = new PrintStream(new File(outputCleanFile));
-			System.setOut(myConsole);
-			for (int i = 0; i < humanLines.size(); i++) {
-				System.out.println(humanLines.get(i));
-			}
-			myConsole.close();
-		} catch (Exception e) {
-			System.err.println("Error trying to write outputHumanFile");
-			e.printStackTrace();
-		}  finally {
-			if (myConsole != null) {	        	
-				myConsole.close();
-				System.setOut(stdout);  
-			}
-		}
-		System.setOut(stdout);  
-		
-	}
+	
 }

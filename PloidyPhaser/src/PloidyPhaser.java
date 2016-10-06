@@ -1,4 +1,5 @@
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -19,6 +20,22 @@ public class PloidyPhaser {
 	static List<Path> vcfPaths=new ArrayList<Path>();
 	
 	public static void main(String[] args) {
+		
+		getFiles();
+		for (int i=0;i<vcfPaths.size();i++){
+			try {
+				VCFManager vcfMan=new VCFManager(vcfPaths.get(i).toFile());
+			} catch (FileNotFoundException e) {
+				e.printStackTrace();
+			} catch (InterruptedException e) {
+				e.printStackTrace();
+			}
+		}
+		
+
+	}
+
+	private static void getFiles() {
 		String line="";
 		try{
 			Scanner sc = new Scanner(new File(ploidyFile));			
@@ -34,18 +51,15 @@ public class PloidyPhaser {
 			    paths.forEach(filePath -> {
 			        if (Files.isRegularFile(filePath) && filePath.toString().substring(filePath.toString().lastIndexOf(".") + 1).equals("vcf")) {
 			        	vcfPaths.add(filePath);
-			        	System.out.println(filePath );
+			        	//System.out.println(filePath );
 			        }
 			    });
-			for (int i=0;i<vcfPaths.size();i++){
-				VCFManager vcfMan=new VCFManager(vcfPaths.get(i).toFile());
-			}
 			
 		}catch (Exception e) {
 			System.out.println("Error reading ploidy estimation file" );
 
 		}
-
+		
 	}
 
 	
