@@ -10,32 +10,22 @@ import java.util.Scanner;
 
 public class VCFManager {
 	List<String> humanLines = new ArrayList<String>();
-	ArrayList<ArrayList<Integer>> vcfMatrix = new ArrayList<ArrayList<Integer>>();
-	String outputFileRoot="C://Users//Mel//Documents//BIOINFORMATICS//DELFT_Research//Codes//VCFManager//";
-	String endFix="";
-	String outputHumanFile="" ;
-	String outputMatrixFile="Matrix.vcf" ;
+	String outputCleanFile="" ;
+
 
 	
 	public VCFManager(File vcfFile) throws FileNotFoundException, InterruptedException {//constructor from vcf file
+		//solve the paths
+		System.out.println("outputHumanFile:"+vcfFile.getParent()+"\\"+vcfFile.getName().substring(0, vcfFile.getName().lastIndexOf('.'))+"Clean.vcf");
+		outputCleanFile = vcfFile.getParent()+"\\"+vcfFile.getName().substring(0, vcfFile.getName().lastIndexOf('.'))+"Clean.vcf";
+		
 		vcfExtractor(vcfFile.getAbsolutePath());	
 	}
 	
 	public void vcfExtractor(String inputFile) throws FileNotFoundException, InterruptedException {
 
-		//solve the paths
-		int lastIndex = inputFile.lastIndexOf("/");
-		if (lastIndex ==-1) {
-			lastIndex = inputFile.lastIndexOf("\\");
-			if (lastIndex ==-1) {
-				lastIndex = 0;
-			} 
-
-		}
-		outputFileRoot = inputFile.substring(0, lastIndex);
-		endFix=inputFile.substring(lastIndex+1, inputFile.length()-4);		
-		outputHumanFile = outputFileRoot + "\\"+ endFix + "HumFileOut.txt";
-		outputMatrixFile = outputFileRoot  + "\\"+ endFix + "MatFileOut.txt";
+		
+		//outputMatrixFile = outputFileRoot  + "\\"+ endFix + "MatFileOut.txt";
 		//System.out.println("outputHumanFile" +outputHumanFile + "   outputMatrixFile" + outputMatrixFile );		
 		// We are interested in the 6th and 7th column:
 		// 6th="Count of As, Cs, Gs, Ts at locus"
@@ -260,7 +250,7 @@ public class VCFManager {
 			num = -num;
 		return num;
 	}
-
+/*
 	public void printVCFmatrix() {
 		System.out.println("Destination path of outputMatrixFile: "+outputMatrixFile);
 		PrintStream stdout = System.out;
@@ -283,14 +273,14 @@ public class VCFManager {
 		}
 		System.setOut(stdout);  
 	}
-
+*/
 	public void printHumanLines() throws FileNotFoundException {
 
 		PrintStream stdout = System.out;
 		PrintStream myConsole = null;
 		
 		try {
-			myConsole = new PrintStream(new File(outputHumanFile));
+			myConsole = new PrintStream(new File(outputCleanFile));
 			System.setOut(myConsole);
 			for (int i = 0; i < humanLines.size(); i++) {
 				System.out.println(humanLines.get(i));
