@@ -41,6 +41,7 @@ public class VCFManager {
 		int ploidy=0;
 		String ref = "";// reference allele
 		String alt=".";// alternative allele
+		int qual=0;
 		List<String> infoFields=new ArrayList();
 
 		String format="GT";
@@ -77,7 +78,19 @@ public class VCFManager {
 				sc.next();// skip id
 				ref = sc.next();// get reference allele
 				alt = sc.next();// get alternative allele
-				sc.next();// skip qual
+				next=sc.next();//qual
+				
+				if(!next.equals(".")){
+					//System.out.print("-ct:"+ct+" pos:"+pos);
+					qual=Integer.parseInt(next);//  qual
+					//System.out.println(" qual:"+qual);
+					
+				}else {
+					//System.out.println("-.ct:"+ct+" pos:"+pos);
+					qual=0;
+					//System.out.println( " qual == '.' :"+qual);
+				}
+				//
 				nextFilter = sc.next();
 				
 				infoFields = Arrays.asList(sc.next().split(";"));// split all
@@ -103,13 +116,15 @@ public class VCFManager {
 					end=Integer.parseInt(infoFields.get(2).substring(4, infoFields.get(2).length())) ;
 					
 					System.out.println("pos:"+pos+" SV infoFields:"+infoFields+ " LENGTH:" + svLength+" FORMAT:"+format);
-					currentHumanLine = chrom+"\t" + pos + "\t.\t"+ ref + "\t" + alt + "\t" + nextFilter + "\tSVTYPE="
+					currentHumanLine = chrom+"\t" + pos + "\t.\t"+ ref + "\t" + alt + "\t" +qual+"\t"+ nextFilter + "\tSVTYPE="
 							+ infoFields.get(0) + ";SVLEN=" + svLength+";END="+end+"\t"+format+"\t"+sample;
 
 				} else {// ...regular vcf line
 					
 					svLength = 0;
-					currentHumanLine = chrom+"\t" + pos + "\t.\t"+ ref + "\t" + alt + "\t" + nextFilter + "\t";
+					//System.out.print("ct:"+ct+"\t" + pos + "\t.\t"+ ref + "\t" + alt + "\t" );
+					//System.out.print(qual+"\t"+nextFilter + "\t");
+					currentHumanLine = chrom+"\t" + pos + "\t.\t"+ ref + "\t" + alt + "\t" + +qual+"\t"+nextFilter + "\t";
 					for (int f=0;f<(infoFields.size()-1);f++){
 						//System.out.println("f:"+f+infoFields.get(f));
 						currentHumanLine += infoFields.get(f)+";";
