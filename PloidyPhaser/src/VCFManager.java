@@ -45,6 +45,7 @@ public class VCFManager {
 		List<String> infoFields=new ArrayList();
 
 		String format="GT";
+		String oldSample="0/0";
 		String sample="";
 		String nextFilter;
 		String currentHumanLine = "*";
@@ -101,14 +102,17 @@ public class VCFManager {
 					ploidy=(int) PloidyPhaser.ploidies.get(chrom);
 					isPloidySolved=true;
 				}
+				//oldSample=sc.next();//if we want to keep the format that HPoP writer says then turn on this two comments
+				//sample="";//(this one too) plus change inside loop sample for oldSample and turn on the line after the  if
 				sample=sc.next();
 				
-				if( ploidy>2){
+				if( ploidy>2){					
 					for (int p=2;p<ploidy;p++){
-						sample+="/0";
+						sample+="/0";//adds 0/ to the bi-allelic sample field from the left to fill the ploidies >2
 					}
 				}
-				
+				//sample+=oldSample;//(turn this ne on too)
+				//if (ct<20)System.out.println(sample);
 				
 				if (!infoFields.get(0).substring(0, 2).equals("DP")) {// Special vcf line ("STRUCTURAL VARIATION" )
 
