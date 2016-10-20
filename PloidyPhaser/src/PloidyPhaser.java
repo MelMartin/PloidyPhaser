@@ -30,11 +30,11 @@ public class PloidyPhaser {
 	static HashMap <String,Integer> readIndexes = new HashMap<String,Integer>(16336669);//index of reads
 	static HashMap ploidies = new HashMap();
 	static List<Path> vcfPaths = new ArrayList<Path>();
-
+	
 	public static void main(String[] args) {
 
 		getFiles();
-		for (int i = 0; i < vcfPaths.size(); i++) {
+		for (int i = 0; i < vcfPaths.size(); i++) {//for each contig, a vcf file is associated
 			try {
 				VCFManager vcfMan = new VCFManager(vcfPaths.get(i).toFile());
 			} catch (FileNotFoundException e) {
