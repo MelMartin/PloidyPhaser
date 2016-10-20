@@ -15,8 +15,8 @@ import net.sf.samtools.SAMFileReader.ValidationStringency;
 
 
 public class VCFManager {
-
-	List<String> cleanLines = new ArrayList<String>();
+	String header="";//vcf Header
+	List<VariationData> cleanLines = new ArrayList<VariationData>();
 	String outputCleanFile="" ;
 	boolean preventDoubleLines=false;
 	File vcfFile;
@@ -95,8 +95,9 @@ public class VCFManager {
 		try {
 			myConsole = new PrintStream(new File(outputCleanFile));
 			System.setOut(myConsole);
+			System.out.println(header);
 			for (int i = 0; i < cleanLines.size(); i++) {
-				System.out.println(cleanLines.get(i));
+				System.out.println(cleanLines.get(i).outString());
 			}
 			myConsole.close();
 		} catch (Exception e) {
@@ -113,20 +114,38 @@ public class VCFManager {
 
 
 
-
-
+	/*NOT NECESARY
+	public VariationData getVariationDataFromLine(String line){
+		//System.out.println("getvarFromLine:"+line+"/");
+		VariationData result=new VariationData();	
+	
+		if (!line.isEmpty()){
+			String chrom="c";
+			int pos = 0;
+			String ref = "";// reference allele
+			String alt=".";// alternative allele
+			String sample="";
+		
+			result=new VariationData(chrom,pos,ref,alt,sample);
+			System.out.print("getvarFromLine:"+line+" ");
+			result.printOut();
+		}
+	
+		return 	result;
+	}
+		*/
 
 	public void vcfVariantShortExtractor(String inputFile) throws FileNotFoundException, InterruptedException {
 
 
 
 		String line="";
-		String header="";
+		
 		Scanner sc = new Scanner(new File(inputFile));
 
 		int ct = 0;
 		String chrom="";
-		int prevPos=0;
+		//int prevPos=0;
 		int pos = 0;
 
 
@@ -137,144 +156,105 @@ public class VCFManager {
 		int ploidy=0;
 		String ref = "";// reference allele
 		String alt=".";// alternative allele
-		String prevAlt=".";//alternative allele when existing in a double line
-		int qual=0;
+		//String prevAlt=".";//alternative allele when existing in a double line
+		//int qual=0;
 		List<String> infoFields=new ArrayList();
 
 		String format="GT";
-		String oldSample="0/0";
 		String sample="";
-		String nextFilter;
-		String currentHumanLine = "*";
-		String previousHumanLine = "//>>";
-		String lastWritenLine="";
+		VariationData currentVariationData=new VariationData() ;
 
-		String next="";
+		//String next="";
 		try {
-			// skip the header		
+			// get the header		
 			line=sc.nextLine();
-			while (line.substring(0, 1).equals("#")){				
-				header+=line ;	
+			while (line.substring(0, 1).equals("#")){	
+				if(!line.substring(0,6).equals("#CHROM")){
+					header+=line ;	
+				}else header+="#CHROM					POS	REF	ALT	SAMPLE";//but adapt the fields to the new short format
 				line=sc.nextLine();				
 				if(line.substring(0, 1).equals("#"))header+="\n";
 				ct++;
 			}
 
-			cleanLines.add(header);
-
 			//reset scaner after the header;
 			sc = new Scanner(new File(inputFile));
 			for(int l=0;l<ct;l++){
-				sc.nextLine();
+				sc.nextLine();//skip headers line
 			}
 			ct=0;
-			chrom=sc.next();
+			
 
-			//get the values
+			//GET THE VCF VALUES
+			chrom=sc.next();
+			//solve ploidy (general for all lines)
+			if (!isPloidySolved ){
+				ploidy=(int) PloidyPhaser.ploidies.get(chrom);
+				isPloidySolved=true;
+			}
+			//solve sample (general for all lines)
+			if (ploidy==1)sample="1";
+			else sample="0/1";
+			if( ploidy>2){					
+				for (int p=2;p<ploidy;p++){
+					sample+="/0";//just for the right number of copies, it doesn't represent the real phasing positions
+				}
+			}
+			//get each specific line
 			while (sc.hasNextLine()  && pos<10010 /* */) {//test with only the first 10.000 positions
 
 				pos = Integer.parseInt(sc.next());	// get pos	
 				sc.next();// skip id
 				ref = sc.next();// get reference allele
 				alt = sc.next();// get alternative allele
-				next=sc.next();//qual
-
-				if(!next.equals(".")){
-					//System.out.print("-ct:"+ct+" pos:"+pos);
-					qual=Integer.parseInt(next);//  qual
-					//System.out.println(" qual:"+qual);
-
-				}else {
-					//System.out.println("-.ct:"+ct+" pos:"+pos);
-					qual=0;
-					//System.out.println( " qual == '.' :"+qual);
-				}
-				//
-				nextFilter = sc.next();
-
-				infoFields = Arrays.asList(sc.next().split(";"));// split all
-				// fields in the info line
+				sc.next();//skip qual		
+				sc.next();//skip nextFilter
+				infoFields = Arrays.asList(sc.next().split(";"));// split all fields in the info line				
 				format=sc.next();
-
-				if (!isPloidySolved ){
-					ploidy=(int) PloidyPhaser.ploidies.get(chrom);
-					isPloidySolved=true;
-				}
-				//----------------------------------------------SAMPLE FIELD: Two possibilities; The current one works, but HPoP writer says that the other is needed for its algorythm to work
-				//oldSample=sc.next();//if we want to keep the format that HPoP writer says,('0/'+'0/1'), then turn on this + two indicated comments in this same block
-				//sample="";//(this one too) plus change inside loop :'sample' for 'oldSample'
-				sample=sc.next();
-
-				if( ploidy>2){					
-					for (int p=2;p<ploidy;p++){
-						sample+="/0";//adds '/0' to the bi-allelic sample field from the right('0/1'+'/0') to fill the ploidies >2
-						//if we want to keep the format that HPoP writer says,  change :'sample' for 'oldSample' and '/0' for '0/'
-					}
-				}
-				//sample+=oldSample;//(turn this one on too)if we want to keep the format that HPoP writer says
-				//----------------------------------------------
-
+				sc.next();//skip sample
+	
 				//buid the line that is going to be written
 				if (!infoFields.get(0).substring(0, 2).equals("DP")) {// Special vcf line ("STRUCTURAL VARIATION" )
 
 					svLength = Integer.parseInt(infoFields.get(1).substring(6, infoFields.get(1).length())) ;
 					end=Integer.parseInt(infoFields.get(2).substring(4, infoFields.get(2).length())) ;
-
 					System.out.println("pos:"+pos+" SV infoFields:"+infoFields+ " LENGTH:" + svLength+" FORMAT:"+format);
-					currentHumanLine = chrom+"\t" + pos + "\t"+ ref + "\t" + alt +"\t"+sample;
+					currentVariationData = new VariationData(chrom, pos ,ref,alt,sample);
 					isVariation=true;
+					//svLength = 0;
 				} else {// ...regular vcf line
-					svLength = 0;
-					//System.out.print("ct:"+ct+"\t" + pos + "\t.\t"+ ref + "\t" + alt + "\t" );
-					currentHumanLine = chrom+"\t" + pos + "\t"+ ref + "\t" + alt + "\t"+sample ;		
+					currentVariationData =new VariationData(chrom, pos ,ref,alt,sample);		
 				}
 
 				//write out the builded lines
-				/*
-			if(pos==prevPos && !lastWritenLine.equals(previousHumanLine) ){//if is a repeated position (but different entry)
-					cleanLines.add("= "+previousHumanLine);
-					lastWritenLine=previousHumanLine;
-				}
-				 */
-				if((isVariation || !alt.equals("."))/*&& !lastWritenLine.equals(currentHumanLine)*/){
-					cleanLines.add(currentHumanLine);
+				if((isVariation || !alt.equals("."))){
+					cleanLines.add(currentVariationData);
 					isVariation=false;
-					//lastWritenLine=currentHumanLine;
 					variations.put(new VariationData(chrom,pos, ref, alt,sample),(variations.size()+1));
-
-					//System.out.println("pos:"+pos+"/"+ref+"/"+alt+" var ind:"+variations.size());
 					if (alt.length()>ref.length()){
 						refInsertsPos.add(pos);
 						nbInsertsPos.add(alt.length()-ref.length());
 					}
 				}
-				prevPos=pos;
-				prevAlt=alt;
-				previousHumanLine = currentHumanLine;
 
-				//line = sc.nextLine();
 				if (sc.hasNextLine() ) { // 'if' to avoid error at end of file
-					currentHumanLine = sc.nextLine();
+					currentVariationData =  new VariationData();
 					chrom=sc.next();// contig name 
 				}else {
-					cleanLines.add(previousHumanLine);//adds last line
-					//System.out.println("no next line at pos "+pos);
+					cleanLines.add(currentVariationData);//adds last line
 				}
 				ct++;		
 			}
 
-			//printCleanLines("Short");
-			//System.out.println("ct:" + ct +" cleanLines.size:"+ cleanLines.size()+" var size:"+variations.size());
+			printCleanLines("Short");
 
 			if (sc != null)
 				sc.close();
-
-			//CreateVariationVertex();//creates the vertex that are going to be used to define the phasing Matrix 'varMat'
 			
-
+			//CreateVariationVertex();//creates the vertex that are going to be used to define the phasing Matrix 'varMat'
 
 		} catch (Exception e) {
-			System.out.println("error at ct:" + ct + " pos:" + pos+" current:  "+currentHumanLine);
+			System.out.println("error at ct:" + ct + " pos:" + pos+" current:  "+currentVariationData.outString());
 		}
 
 	}
@@ -296,13 +276,14 @@ public class VCFManager {
 		
 	}
 
+	/*DEPRECATED
 	//creates a new vcf file with only the variants on it (SNPs, structural variations and double lines) 	
 	public void vcfVariantExtractor(String inputFile) throws FileNotFoundException, InterruptedException {
 
 
 
 		String line="";
-		String header="";
+	
 		Scanner sc = new Scanner(new File(inputFile));
 
 		int ct = 0;
@@ -340,7 +321,7 @@ public class VCFManager {
 				ct++;
 			}
 
-			cleanLines.add(header);
+			
 
 			//reset scaner after the header;
 			sc = new Scanner(new File(inputFile));
@@ -351,8 +332,9 @@ public class VCFManager {
 			chrom=sc.next();
 
 			//get the values
-			while (sc.hasNextLine() /* && ct < 34000 */) {
-
+			while (sc.hasNextLine() /* && ct < 34000 */       
+	/*) {
+				
 				pos = Integer.parseInt(sc.next());	// get pos	
 				sc.next();// skip id
 				ref = sc.next();// get reference allele
@@ -450,6 +432,7 @@ public class VCFManager {
 		}
 
 	}
+	*/
 
 
 }
