@@ -36,7 +36,7 @@ public class PloidyPhaser {
 		getFiles();
 		for (int i = 0; i < vcfPaths.size(); i++) {//for each contig, a vcf file is associated
 			try {
-				VCFManager vcfMan = new VCFManager(vcfPaths.get(i).toFile());
+				VCFParser vcfPar = new VCFParser(vcfPaths.get(i).toFile());
 			} catch (FileNotFoundException e) {
 				e.printStackTrace();
 			} catch (InterruptedException e) {

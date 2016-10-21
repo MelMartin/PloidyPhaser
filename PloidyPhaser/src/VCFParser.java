@@ -14,10 +14,10 @@ import net.sf.samtools.SAMRecordIterator;
 import net.sf.samtools.SAMFileReader.ValidationStringency;
 
 
-public class VCFManager {
+public class VCFParser {
 	
 	String header="";//vcf Header
-	List<VariationData> cleanLines = new ArrayList<VariationData>();
+	//List<VariationData> variations = new ArrayList<VariationData>();
 	String outputCleanFile="" ;
 	File vcfFile;
 	VariationsManager varMan=new VariationsManager(this);
@@ -33,13 +33,13 @@ public class VCFManager {
 	//-----------------------ERASE IF NOT USED -------------------------------------
 
 
-	public VCFManager(File vf) throws FileNotFoundException, InterruptedException {//constructor from vcf file
+	public VCFParser(File vf) throws FileNotFoundException, InterruptedException {//constructor from vcf file
 		
 		vcfFile=vf;
 		
 		vcfVariantShortExtractor(vcfFile.getAbsolutePath());//extracts only the repeated variants in a short format: chromName, pos, ref, alt
 		varMan.constructVariantMatrix();
-		//varMan.fillVariantMatrix();
+		varMan.fillVariantMatrix();
 
 	}
 
@@ -133,7 +133,7 @@ public class VCFManager {
 
 				//write out the builded lines
 				if((isVariation || !alt.equals("."))){
-					cleanLines.add(currentVariationData);
+					varMan.variations.add(currentVariationData);
 					isVariation=false;
 					varMan.registerVariation(currentVariationData);
 					if (alt.length()>ref.length()){
@@ -146,12 +146,12 @@ public class VCFManager {
 					currentVariationData =  new VariationData();
 					chrom=sc.next();// contig name 
 				}else {
-					cleanLines.add(currentVariationData);//adds last line
+					varMan.variations.add(currentVariationData);//adds last line
 				}
 				ct++;		
 			}
 
-			printCleanLines("Short");
+			varMan.printOutVariations("Short");
 
 			if (sc != null)
 				sc.close();
@@ -165,53 +165,5 @@ public class VCFManager {
 	}
 
 
-
-	public void printCleanLines(String apendix) throws FileNotFoundException {
-
-		System.out.println("outputCleanFile:"+vcfFile.getParent()+"\\Clean\\"+vcfFile.getName().substring(0, vcfFile.getName().lastIndexOf('.'))+apendix+".vcf");
-		outputCleanFile = vcfFile.getParent()+"\\Clean\\"+vcfFile.getName().substring(0, vcfFile.getName().lastIndexOf('.'));
-
-		outputCleanFile +=apendix+".vcf";
-
-		PrintStream stdout = System.out;
-		PrintStream myConsole = null;
-
-		try {
-			myConsole = new PrintStream(new File(outputCleanFile));
-			System.setOut(myConsole);
-			System.out.println(header);
-			for (int i = 0; i < (cleanLines.size()-1); i++) {
-				System.out.println(cleanLines.get(i).outString());
-			}
-			System.out.print(cleanLines.get(cleanLines.size()-1).outString());//last line without endline
-			myConsole.close();
-		} catch (Exception e) {
-			System.err.println("Error trying to write outputHumanFile");
-			e.printStackTrace();
-		}  finally {
-			if (myConsole != null) {	        	
-				myConsole.close();
-				System.setOut(stdout);  
-			}
-		}
-		System.setOut(stdout);  
-	}
-	
-	/*
-	private void CreateVariationVertex() {
-		VariationData var;
-		
-		for (HashMap.Entry<VariationData,Integer> entry : varMan.variations.entrySet()) {
-			var=entry.getKey();
-			if (var.ref.length()>1){
-				var.printOut();
-				//int dif=var.ref.length()
-			}
-		}
-		//TODO with real size
-		//varMat=new int[variationsREAL.size()][variationsREAL.size()];
-		
-	}
-*/
 	
 }
