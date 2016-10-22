@@ -32,7 +32,7 @@ public class VariationData {
 	}
 	
 	public String outString(){
-		return name+"\t"+pos+"\t"+ref+"\t"+alt+"\t"+sample;		
+		return /*name+"\t"+*/pos+"\t"+ref+"\t"+alt+"\t"+sample;		
 	}
 	
 	public VariationData makeAlterativeVarDataFromRef(VariationData vd) {
