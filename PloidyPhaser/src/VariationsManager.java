@@ -8,6 +8,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import net.sf.samtools.Cigar;
+import net.sf.samtools.CigarElement;
+import net.sf.samtools.CigarOperator;
 import net.sf.samtools.SAMFileReader;
 import net.sf.samtools.SAMRecord;
 import net.sf.samtools.SAMRecordIterator;
@@ -62,18 +64,19 @@ public class VariationsManager {
 			SAMRecordIterator iter = inputSam.iterator();
 			int ct = 0;
 
-			String refName = "";// for debugging a bad line in the .sam file
+			//String refName = "";// for debugging a bad line in the .sam file
 			int alStart;
 			int alEnd;
 			String libraryName="."+PloidyPhaser.bamPaths.get(bi).getName().substring(0,PloidyPhaser.bamPaths.get(bi).getName().lastIndexOf('.'));
 			String readName="";
 			String readSeq="";
 			int currentVpInd=0;//index of the current variation
+			CigarCounter cigCount;
 
 			while (iter.hasNext() && ct<500 ) {//iterates the sam file (for each read)
-				SAMRecord rec = iter.next();
+				SAMRecord rec = iter.next();//read line
 				readName=rec.getReadName()+libraryName;
-				refName = rec.getReferenceName();
+				//refName = rec.getReferenceName();
 				alStart = rec.getAlignmentStart();
 				alEnd = rec.getReadLength()+alStart;
 				readSeq=rec.getReadString();
@@ -88,24 +91,22 @@ public class VariationsManager {
 					if(alEnd>variationsPos[currentVpInd]){
 						System.out.println("ct:"+ct+" ReadIndex:"+PloidyPhaser.readIndexes.get(readName) +" st:"+alStart+" end:"+alEnd+" length:"+rec.getReadLength()+" cig:"+rec.getCigar()+" s:"+readSeq);
 						//System.out.println( "vpInd:"+vpInd+" currentVpInd:"+currentVpInd+" variationsPos_currentVpInd["+currentVpInd+"]:"+variationsPos[currentVpInd]);
+						cigCount=new CigarCounter(rec.getCigar(),readSeq);//new cigarCount for each read Sequence readSeq
 
+						//while the read spans positions with a variation
+						while(alEnd>variationsPos[currentVpInd]){
+
+							//get all vars covered by the read
+							int i=0;//index over all posible variations for the current read
+							VariationData curVar=variations.get(currentVpInd+i);//currentVariation
+							while(curVar.pos==variationsPos[currentVpInd]){
+								solveVariation(curVar, alStart,readSeq,rec.getReadLength(),cigCount);
+								i++;
+								curVar=variations.get(currentVpInd+i);
+							}
+							currentVpInd++;
+						}		
 					}
-
-					//while the read spans positions with variation
-					while(alEnd>variationsPos[currentVpInd]){
-
-						//get all vars covered by the read
-						int i=0;//index over all posible variations for the current read
-						VariationData curVar=variations.get(currentVpInd+i);//currentVariation
-						while(curVar.pos==variationsPos[currentVpInd]){
-							solveVariation(curVar, alStart,readSeq,rec.getReadLength(),rec.getCigar());
-							i++;
-							curVar=variations.get(currentVpInd+i);
-
-						}
-						currentVpInd++;
-					}		
-
 					ct++;
 				}
 			}
@@ -116,22 +117,12 @@ public class VariationsManager {
 
 	//for each variation, this function compares the subsequence of the candidate read to the possible allele variations
 	//and outputs the represented one (ref=1 alt=2 none=0)
-	public void solveVariation(VariationData curVar,int alStart, String readSeq, int readLength,Cigar cigarString){
+	public void solveVariation(VariationData curVar,int alStart, String readSeq, int readLength,CigarCounter cigCount){
 		int subSeqBeg=curVar.pos-alStart;//begin index on the subsequence from readSeq.
 		int subSeqEnd=(curVar.pos-alStart)+curVar.ref.length();//begin index on the subsequence from readSeq.
 
-		if((subSeqBeg+curVar.ref.length())<=readLength){
-			System.out.print( " CurrVar:"+curVar.outString()+" subSeqBeg:"+subSeqBeg);	
-			CigarCounter cigCount=new CigarCounter(cigarString.toString());
-			for (int i=0;i<subSeqBeg;i++){
-				cigCount.next();
-			}
-			subSeqBeg=cigCount.beg;
-			for (int i=0;i<curVar.ref.length();i++){
-				cigCount.next();
-			}
-			subSeqEnd=cigCount.beg;
-			System.out.println( " cigCount b/e:"+subSeqBeg+"/"+subSeqEnd+" query:"+readSeq.substring(subSeqBeg,subSeqEnd));
+		if((subSeqBeg+curVar.ref.length())<=readLength){	
+			System.out.println( " CurrVar:"+curVar.outString()+" subSeq:"+cigCount.getSubseq(subSeqBeg, subSeqEnd));
 		}
 
 
@@ -139,56 +130,113 @@ public class VariationsManager {
 	}
 
 	private class CigarCounter{//keeps track of the way the read is mapped in order to obtain the correctly aligned read subsequence
-		ArrayList<String> cigarElems;
-		int beg=0;//begin index on the subsequence from readSeq.
-		int end=0;//begin index on the subsequence from readSeq.
-		int currentIndCigarElem=0;//current index on cigarElems
-		public CigarCounter(String cigarString){
-			cigarElems=splitCIGAR(cigarString);
-			System.out.println( "\tcigar:"+cigarElems);
-		}
+		/*
+		op    Description
+		M    Alignment match (can be a sequence match or mismatch
+		I    Insertion to the reference
+		D    Deletion from the reference
+		N    Skipped region from the reference
+		S    Soft clip on the read (clipped sequence present in <seq>)
+		H    Hard clip on the read (clipped sequence NOT present in <seq>)
+		P    Padding (silent deletion from the padded reference sequence)
+		 */
+		boolean isAllM=false;
+		String original;
+		char[] alignedSeq;
+		List<CigarElement> cigarElems;
+		CigarOperator currentOp;//curent operation corresponding to the currentIndCigarElem (M,D,I,S,X,=)
+		int basesLeft;
+		int totalNewBases=0;
+		int alignedBases=0;////index of new aligned bases in alignedSeq 
+		int originalBases=0;//index of original bases in original sequence
 
-		//A function to split the CIGAR value into a list of CIGAR elements 
-		// with first the type of cigar alignment, then the number of corresponding position
-		//ie: 60M5D40M outputs: [M, 60, D, 5, M, 40]
-		private ArrayList<String> splitCIGAR(String cigarString) {
-			//One cigar component is a number of any digit, followed by a letter or =
-			Pattern cigarPattern = Pattern.compile("[\\d]+[a-zA-Z|=]");
-			ArrayList<String> cigarElems = new ArrayList<String>();
-			Matcher matcher = cigarPattern.matcher(cigarString);
-			while (matcher.find()) {
-				String[] unit=matcher.group().split("(?<=\\D)(?=\\d)|(?<=\\d)(?=\\D)");	    	
-				cigarElems.add(unit[1] );
-				cigarElems.add(unit[0] );	    	
-			}
-			return cigarElems;
-		}
+		public CigarCounter(Cigar cigar,String readSeq){
+			original =readSeq;
+			cigarElems=cigar.getCigarElements();
+			//check if the sequence needs to be altered (an all match cigar is going to have the same sequence before and after this class treatment)
+			if(cigarElems.size()==1 && cigarElems.get(0).getOperator().equals(CigarOperator.M)){
+				isAllM=true;
+				System.out.println( "cigarElems: ALL Ms");
+			}else{
+				System.out.print( "cigarElems:");
+				getTotalNewBases( cigar);
+				alignedSeq=new char[totalNewBases];
+				for (int e=0;e<cigarElems.size();e++){
+					currentOp=cigarElems.get(e).getOperator();
+					basesLeft=cigarElems.get(e).getLength();
+					System.out.print( currentOp+" "+basesLeft+ " ");
 
-		public void next(){
-			if (beg!=-1){//this rejects all reads which contain a bad cigar Op ('S','H'or'X')
-				//Could be more effective if it considers to reject only the bad Op which concerns Variation positions
-				String currentOp=cigarElems.get(currentIndCigarElem);//current cigar operation (M,D,I,...)
-
-				switch(currentOp){
-				case "M"://Match
-					beg++;
-					break;
-				case "="://equal match
-					beg++;
-					break;
-				case "D"://deletion: don't move seqEnd
-					break;
-				case "I"://insertion: don't know what to do with this yet
-					break;
-				default://'S','H'or'X': sequence doesn't appear on alignment (don't map)->if position concerns the variation, signal to ignore the variation(returns -1?)
-					beg=-1;
-					break;
+					while(basesLeft>0){
+						align();					
+					}
 				}
-				if (Integer.parseInt(cigarElems.get(currentIndCigarElem+1))==0 && cigarElems.size()>(currentIndCigarElem+1)){
-					currentIndCigarElem=currentIndCigarElem+2;
+				//printout
+				System.out.println( );
+				System.out.println("alignedSeq:" );
+				for (int i=0;i<alignedSeq.length;i++){
+					System.out.print(alignedSeq[i] );
 				}
+				System.out.println( );
+			}
+
+		}
+
+		private void getTotalNewBases(Cigar cigar) {
+			for (int e=0;e<cigarElems.size();e++){
+				if (cigar.getCigarElement(e).getOperator().equals(CigarOperator.M) || cigar.getCigarElement(e).getOperator().equals(CigarOperator.D) || cigar.getCigarElement(e).getOperator().equals(CigarOperator.EQ)  || cigar.getCigarElement(e).getOperator().equals(CigarOperator.I)){
+					totalNewBases+=cigarElems.get(e).getLength();	
+				}			
 			}
 		}
+
+		private void align(){
+
+			switch(currentOp){
+			case M://Match					
+				alignedSeq[alignedBases++]=original.charAt(originalBases++);
+				break;
+			case EQ://equal match
+				alignedSeq[alignedBases++]=original.charAt(originalBases++);
+				break;
+			case D://deletion
+				alignedSeq[alignedBases++]='-';
+				break;
+			case I://insertion: don't know if this is correct yet
+				alignedSeq[alignedBases++]='*';
+				break;
+			case S://soft clipped (Ignore this base)
+				originalBases++;
+				break;
+			case H://hard clipped (Ignore this base)
+				originalBases++;
+				break;
+			case P://padding (empty insert) : don't know if this is correct yet
+				alignedSeq[alignedBases++]='*';
+				break;
+			default://'X': sequence doesn't appear on alignment (don't map)->if position concerns the variation, signal to ignore the variation(returns -1?)
+				;
+				break;
+			}
+			basesLeft--;
+
+		}
+
+		private String getSubseq(int beg,int end){
+			String subSeq="";
+			if (!isAllM){
+				for (int i=beg;i<end;i++){
+					if(i<alignedSeq.length){
+						subSeq+=alignedSeq[i];
+					}else {
+						subSeq="#";
+						break;
+					}
+				}
+			}else subSeq= original.substring(beg,end);
+			return subSeq;
+		}
+
+
 	}
 
 
