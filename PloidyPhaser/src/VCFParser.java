@@ -1,17 +1,10 @@
 
 import java.io.File;
 import java.io.FileNotFoundException;
-import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Scanner;
-
-import net.sf.samtools.SAMFileReader;
-import net.sf.samtools.SAMRecord;
-import net.sf.samtools.SAMRecordIterator;
-import net.sf.samtools.SAMFileReader.ValidationStringency;
 
 
 public class VCFParser {
@@ -23,20 +16,9 @@ public class VCFParser {
 	VariationsManager varMan=new VariationsManager(this);
 	
 	
-	
-	
-	//----------------------- AM I GOING TO NEED THESE????--------------------------
-	
-	List<Integer> refInsertsPos=new ArrayList<Integer>();//keeps track of inserts pos into the reference allele (each time 'alt' is longer than 'ref')
-	List<Integer> nbInsertsPos=new ArrayList<Integer>();//keeps track of nb of inserts into the reference allele (each time 'alt' is longer than 'ref')
-	
-	//-----------------------ERASE IF NOT USED -------------------------------------
-
-
 	public VCFParser(File vf) throws FileNotFoundException, InterruptedException {//constructor from vcf file
 		
-		vcfFile=vf;
-		
+		vcfFile=vf; 
 		vcfVariantShortExtractor(vcfFile.getAbsolutePath());//extracts only the repeated variants in a short format: chromName, pos, ref, alt
 		varMan.constructVariantMatrix();
 		varMan.fillVariantMatrix();
@@ -45,24 +27,23 @@ public class VCFParser {
 
 	
 
-
+	//extracts the vcf lines that contains a variation with a ref different than an alternative allele (both !='.')
 	public void vcfVariantShortExtractor(String inputFile) throws FileNotFoundException, InterruptedException {
 
 		String line="";
-		
 		Scanner sc = new Scanner(new File(inputFile));
 
 		int ct = 0;
 		String chrom="";
 		int pos = 0;
 		int svLength;// length of the sv
-		int end;
+		//int end;
 		Boolean isPloidySolved=false;
 		Boolean isVariation=false;
 		int ploidy=0;
 		String ref = "";// reference allele
 		String alt=".";// alternative allele
-		List<String> infoFields=new ArrayList();
+		List<String> infoFields=new ArrayList<String>();
 
 		String format="GT";
 		String sample="";
@@ -121,7 +102,7 @@ public class VCFParser {
 				if (!infoFields.get(0).substring(0, 2).equals("DP")) {// Special vcf line ("STRUCTURAL VARIATION" )
 
 					svLength = Integer.parseInt(infoFields.get(1).substring(6, infoFields.get(1).length())) ;
-					end=Integer.parseInt(infoFields.get(2).substring(4, infoFields.get(2).length())) ;
+					//end=Integer.parseInt(infoFields.get(2).substring(4, infoFields.get(2).length())) ;
 					System.out.println("pos:"+pos+" SV infoFields:"+infoFields+ " LENGTH:" + svLength+" FORMAT:"+format);
 					currentVariationData = new VariationData(chrom, pos ,ref,alt,sample);
 					isVariation=true;
@@ -131,22 +112,18 @@ public class VCFParser {
 				}
 				
 
-				//write out the builded lines
+				//write out the builded lines (these are the ones that interest us)
 				if((isVariation || !alt.equals("."))){
-					varMan.variations.add(currentVariationData);
+					varMan.vcfVarLines.add(currentVariationData);//adds each vcf line with ref!=alt (
 					isVariation=false;
-					varMan.registerVariation(currentVariationData);
-					if (alt.length()>ref.length()){
-						refInsertsPos.add(pos);
-						nbInsertsPos.add(alt.length()-ref.length());
-					}
+					varMan.registerVariations(currentVariationData);//register separately each of the possible expressions per variation line ('ref' and 'alt')
 				}
 
 				if (sc.hasNextLine() ) { // 'if' to avoid error at end of file
 					currentVariationData =  new VariationData();
 					chrom=sc.next();// contig name 
 				}else {
-					varMan.variations.add(currentVariationData);//adds last line
+					varMan.vcfVarLines.add(currentVariationData);//adds last line
 				}
 				ct++;		
 			}
@@ -161,7 +138,6 @@ public class VCFParser {
 		} catch (Exception e) {
 			System.out.println("error at ct:" + ct + " pos:" + pos+" current:  "+currentVariationData.outString());
 		}
-
 	}
 
 
