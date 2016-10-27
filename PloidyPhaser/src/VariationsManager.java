@@ -44,7 +44,7 @@ public class VariationsManager {
 		newVD.setVarExpMatrixIndex(varExpMatIndexesSize++);
 		varExpMatIndexes.put(newVD.matrixIndex,newVD.id);//stores alternative allele	
 		varExprIds.put(newVD.id, newVD);
-		//System.out.println(newVD.id+"\t/"+newVD.matrixIndex);
+		//if(newVD.id.equals("457C"))System.out.println("!!!!!!!!!!!!    457C REGISTRATION "+newVD.id+"\t/"+newVD.matrixIndex+" "+newVD.ref+" varExprIds.get:"+varExprIds.get(newVD.id).ref);
 	}
 
 
@@ -126,7 +126,7 @@ public class VariationsManager {
 							currentVpInd=currentVpInd+i;
 						}
 						checkDetectedVariations(tempDetectedVariationsIds);
-						System.out.println( "   tempDetectedVariationsIds:"+tempDetectedVariationsIds);
+						
 					}
 				}
 				//System.out.println( "   tempDetectedVariationsIds:"+tempDetectedVariationsIds);
@@ -141,55 +141,97 @@ public class VariationsManager {
 		
 	}
 
+	
+	private PairPosSignature getPairPosSignature(String id){
+		
+		StringBuilder p = new StringBuilder();
+		 StringBuilder s = new StringBuilder();
+		 for(int i = 0; i < id.length(); i++){
+		        char c = id.charAt(i);
+		        if(c > 47 && c < 58){
+		            p.append(c);
+		        }else s.append(c);
+		    }
+		 return new PairPosSignature(Integer.parseInt(p.toString()),s.toString());
+		
+	}
+	
+	private class PairPosSignature{
+		int pos;
+		String sig;
+		
+		private PairPosSignature(int p,String s){
+			pos=p;
+			sig=s;
+		}
+	}
 
 	private void checkDetectedVariations(List<String> tempDetectedVariationsIds) {
-		
+		System.out.println( "   tempDetectedVariationsIds:"+tempDetectedVariationsIds);
+		List<String> correctedVariationsIds=new ArrayList<String>();
 		String id;
 		int pos;
 		String expSignature;
 		for(int d=0;d<tempDetectedVariationsIds.size();d++){
+			
 			id=tempDetectedVariationsIds.get(d);
+			System.out.println ("  NEXT TO CHECK:  "+id );
+			
 			if(varExprIds.get(id)==null){//error signature
-				 StringBuilder p = new StringBuilder();
-				 StringBuilder s = new StringBuilder();
-				 for(int i = 0; i < id.length(); i++){
-				        char c = id.charAt(i);
-				        if(c > 47 && c < 58){
-				            p.append(c);
-				        }else s.append(c);
-				    }
-				 pos=Integer.parseInt(p.toString());
-				 expSignature=s.toString();
-				 /*
+				PairPosSignature pps=getPairPosSignature(id);//split pos from expressed variation part of the id
+				pos=pps.pos;//position of var
+				expSignature=pps.sig;//expressed allele
+				
 				 System.out.println (" ****************************" );
-				 System.out.println (" **  id: "+id+ " * :"+pos+":-:"+expSignature+": *****" );
+				 System.out.println (" **  id: "+id+ " * :"+pos+":-:"+expSignature+": ***** ");
 				 System.out.println (" **                       ***" );
 				 System.out.println (" *                         **" );
-				 */
+				 
 				 if(expSignature.equals("-")){//the pos is not covered by the alignment (an expressed deletion covers this position)-> remove it
-					 //System.out.println (tempDetectedVariationsIds.get(d)+"  removed  " );
+					 System.out.println (tempDetectedVariationsIds.get(d)+"  removed BECAUSE OF '-' " );
 
 					 tempDetectedVariationsIds.remove(d);
-				 }else  if(expSignature.substring(1,1).equals("-")){ //remove extra '-'
-					 //System.out.println (tempDetectedVariationsIds.get(d)+"  removed and replaced by "+pos+expSignature.substring(0,1) );
+				 }else  if(expSignature.substring(1,2).equals("-")){ //remove extra '-'
+					 System.out.println (tempDetectedVariationsIds.get(d)+"  removed and replaced by "+pos+expSignature.substring(0,2) );
 					 tempDetectedVariationsIds.remove(d);
-					 tempDetectedVariationsIds.add(pos+expSignature.substring(0,1));
+					 correctedVariationsIds.add(pos+expSignature.substring(0,2));
 				   } else { 
+					   System.out.println ("   CHECKING COMVAR :" +tempDetectedVariationsIds.get(d));
+
 					   //either is a combination of variations 
-					   
+					   boolean isAVariationComb=false;
+					   char[] correctedSig=expSignature.toCharArray();//the corrected version of the signature(initialize as the currently expressed)
+					   for (int esp=0;esp<expSignature.length();esp++){//for each expression signature position
+						   //check existing variations in the corresponding positions
+						   int tp=pos+esp;// target position
+						   String qID=expSignature.substring(esp,esp+1);//candidate char in query signature
+						   String candSig=(tp+qID);//candidate signature
+						   int indOfCandVariation;//index of Candidate Variation in tempDetectedVariaton
+						   if(tempDetectedVariationsIds.contains(candSig) ){//if the candidate exists
+							   indOfCandVariation=tempDetectedVariationsIds.indexOf(candSig);//gets its index
+							   isAVariationComb=tempDetectedVariationsIds.contains(candSig);
+							   PairPosSignature cpps=getPairPosSignature(tempDetectedVariationsIds.get(indOfCandVariation));
+							   correctedSig[esp]=varExprIds.get(candSig).ref.charAt(0);
+
+							  // System.out.print ("candSig :" +candSig+": isAVariationComb?:"+isAVariationComb+" at ind "+indOfCandVariation );
+							 //  System.out.print (" candidate var:"+varExprIds.get("457C").outString()+" equals '457C'? :"+(candSig.equals("457C") +"  +")  );
+
+							   
+						   }
+						   
+					   }
+					   System.out.println("correctedSig:"+new String(correctedSig));
+					   //or an error to dismiss
 				   }
 				 
 				 
 				 
-				 /*
+				 
 				 
 				 System.out.println (" *                         **" );
 				 System.out.println (" **                       ***" );
 				 System.out.println (" ****************************" );
-				 
-				 */
-				 
-				 
+				 	 
 				 
 			}else {//signature ok
 				pos=varExprIds.get(id).pos;
@@ -197,11 +239,10 @@ public class VariationsManager {
 				//System.out.println (" **  id: "+id+ " * "+pos+" "+expSignature );
 			}
 			
-		
+			//
 
-			//if (tempDetectedVariationsIds.get(d))
 		}
-		
+		if (correctedVariationsIds.size()>1)tempDetectedVariationsIds.addAll(correctedVariationsIds);
 	}
 
 
@@ -220,9 +261,11 @@ public class VariationsManager {
 		
 		if(subSeqEnd<=readLength  && cigCount.isValidRead){	
 			subSeq=cigCount.getSubseq(subSeqBeg, subSeqEnd);//get the aligned read subsequence corresponding to the pertinent positions
-			System.out.println( "   CurrVar:"+curVar.outString()+" GETSUBSEQ "+"("+subSeqBeg+"/"+subSeqEnd+"):"+subSeq);
+			//System.out.println( "   CurrVar:"+curVar.outString()+" GETSUBSEQ "+"("+subSeqBeg+"/"+subSeqEnd+"):"+subSeq);
 
 		}
+		System.out.println(" DETECTED "+"("+subSeqBeg+"/"+subSeqEnd+"):"+subSeq);
+
 		return subSeq;
 
 
