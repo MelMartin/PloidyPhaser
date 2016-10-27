@@ -116,7 +116,7 @@ public class VCFParser {
 				if((isVariation || !alt.equals("."))){
 					varMan.vcfVarLines.add(currentVariationData);//adds each vcf line with ref!=alt (
 					isVariation=false;
-					varMan.registerVariations(currentVariationData);//register separately each of the possible expressions per variation line ('ref' and 'alt')
+					varMan.registerPossibleVariationExpressions(currentVariationData);//register separately each of the possible expressions per variation line ('ref' and 'alt')
 				}
 
 				if (sc.hasNextLine() ) { // 'if' to avoid error at end of file

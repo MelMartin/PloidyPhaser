@@ -19,13 +19,13 @@ import net.sf.samtools.SAMFileReader.ValidationStringency;
 
 public class VariationsManager {
 	VCFParser vm;
-	int varMatIndexesSize=0;
-	HashMap<Integer,String> varMatIndexes=new HashMap<Integer,String>();//keeps track of the variation index in the 
+	int varExpMatIndexesSize=0;
+	HashMap<Integer,String> varExpMatIndexes=new HashMap<Integer,String>();//keeps track of the (possible) variation expressions index in the 
 	 							//connectivity matrix (matIndex) <key> , and their id (VarId) <value>
-	HashMap<String,VariationData> varDatIds=new HashMap<String,VariationData>();//keeps track of variation_identifiers<key> and 
-																				//the corresponding VariationData (which contains a matIndex field)
-	List<VariationData> vcfVarLines = new ArrayList<VariationData>();//list of variations where 'ref' different than 'alt'
-	int[][]varMat;
+	HashMap<String,VariationData> varExprIds=new HashMap<String,VariationData>();//keeps track of (possible)_variation_expresion_identifiers<key> and 
+																				//the corresponding (possible)_variation_expresion VariationData (which contains a matIndex field)
+	List<VariationData> vcfVarLines = new ArrayList<VariationData>();//list of variations Positions where 'ref' different than 'alt'
+	int[][]varExpMat;//expressed variation connectivity matrix
 
 
 	public VariationsManager(VCFParser vm){
@@ -33,17 +33,17 @@ public class VariationsManager {
 	}
 
 
-	public void registerVariations(VariationData vd){
+	public void registerPossibleVariationExpressions(VariationData vd){//for each variation position, two possible expressions are registered (Ref and alt)
 
-		vd.setMatrixIndex(varMatIndexesSize++);
-		varMatIndexes.put(vd.matrixIndex,vd.id);//stores reference	allele	
-		varDatIds.put(vd.id, vd);
+		vd.setVarExpMatrixIndex(varExpMatIndexesSize++);
+		varExpMatIndexes.put(vd.matrixIndex,vd.id);//stores reference	allele	
+		varExprIds.put(vd.id, vd);
 		//System.out.println(vd.id+"\t/"+vd.matrixIndex);
 		
-		VariationData newVD=vd.makeAlterativeVarDataFromRef(vd);	
-		newVD.setMatrixIndex(varMatIndexesSize++);
-		varMatIndexes.put(newVD.matrixIndex,newVD.id);//stores alternative allele	
-		varDatIds.put(newVD.id, newVD);
+		VariationData newVD=vd.makeAlternativeVarExpressionFromRef(vd);	
+		newVD.setVarExpMatrixIndex(varExpMatIndexesSize++);
+		varExpMatIndexes.put(newVD.matrixIndex,newVD.id);//stores alternative allele	
+		varExprIds.put(newVD.id, newVD);
 		//System.out.println(newVD.id+"\t/"+newVD.matrixIndex);
 	}
 
@@ -125,9 +125,11 @@ public class VariationsManager {
 							}
 							currentVpInd=currentVpInd+i;
 						}
+						checkDetectedVariations(tempDetectedVariationsIds);
+						System.out.println( "   tempDetectedVariationsIds:"+tempDetectedVariationsIds);
 					}
 				}
-				System.out.println( "   tempDetectedVariationsIds:"+tempDetectedVariationsIds);
+				//System.out.println( "   tempDetectedVariationsIds:"+tempDetectedVariationsIds);
 				ct++;
 			}
 			
@@ -135,6 +137,69 @@ public class VariationsManager {
 			
 			iter.close();
 			inputSam.close();
+		}
+		
+	}
+
+
+	private void checkDetectedVariations(List<String> tempDetectedVariationsIds) {
+		
+		String id;
+		int pos;
+		String expSignature;
+		for(int d=0;d<tempDetectedVariationsIds.size();d++){
+			id=tempDetectedVariationsIds.get(d);
+			if(varExprIds.get(id)==null){//error signature
+				 StringBuilder p = new StringBuilder();
+				 StringBuilder s = new StringBuilder();
+				 for(int i = 0; i < id.length(); i++){
+				        char c = id.charAt(i);
+				        if(c > 47 && c < 58){
+				            p.append(c);
+				        }else s.append(c);
+				    }
+				 pos=Integer.parseInt(p.toString());
+				 expSignature=s.toString();
+				 /*
+				 System.out.println (" ****************************" );
+				 System.out.println (" **  id: "+id+ " * :"+pos+":-:"+expSignature+": *****" );
+				 System.out.println (" **                       ***" );
+				 System.out.println (" *                         **" );
+				 */
+				 if(expSignature.equals("-")){//the pos is not covered by the alignment (an expressed deletion covers this position)-> remove it
+					 //System.out.println (tempDetectedVariationsIds.get(d)+"  removed  " );
+
+					 tempDetectedVariationsIds.remove(d);
+				 }else  if(expSignature.substring(1,1).equals("-")){ //remove extra '-'
+					 //System.out.println (tempDetectedVariationsIds.get(d)+"  removed and replaced by "+pos+expSignature.substring(0,1) );
+					 tempDetectedVariationsIds.remove(d);
+					 tempDetectedVariationsIds.add(pos+expSignature.substring(0,1));
+				   } else { 
+					   //either is a combination of variations 
+					   
+				   }
+				 
+				 
+				 
+				 /*
+				 
+				 System.out.println (" *                         **" );
+				 System.out.println (" **                       ***" );
+				 System.out.println (" ****************************" );
+				 
+				 */
+				 
+				 
+				 
+			}else {//signature ok
+				pos=varExprIds.get(id).pos;
+				expSignature=varExprIds.get(id).expSignature;
+				//System.out.println (" **  id: "+id+ " * "+pos+" "+expSignature );
+			}
+			
+		
+
+			//if (tempDetectedVariationsIds.get(d))
 		}
 		
 	}
@@ -155,7 +220,7 @@ public class VariationsManager {
 		
 		if(subSeqEnd<=readLength  && cigCount.isValidRead){	
 			subSeq=cigCount.getSubseq(subSeqBeg, subSeqEnd);//get the aligned read subsequence corresponding to the pertinent positions
-			//System.out.println( "   CurrVar:"+curVar.outString()+" GETSUBSEQ "+"("+subSeqBeg+"/"+subSeqEnd+"):"+subSeq);
+			System.out.println( "   CurrVar:"+curVar.outString()+" GETSUBSEQ "+"("+subSeqBeg+"/"+subSeqEnd+"):"+subSeq);
 
 		}
 		return subSeq;
@@ -302,7 +367,7 @@ public class VariationsManager {
 			try{
 			
 			
-			if (!isAllM ){
+			if (!isAllM ){//complex cigar
 				int nextInsertPos=0;
 				
 				for (int i=beg;i<end;i++){
@@ -324,13 +389,16 @@ public class VariationsManager {
 							if((i-addedBases)<nextUpIndex){//normal match of the sequence 
 								subSeq+=alignedSeq[i+addedBases];
 								//System.out.println(" -i:"+i+" add:"+alignedSeq[i+addedBases]);
-							}else if ((i-addedBases)==nextUpIndex){//insert match of the sequence
+							}else if ((i-addedBases)>=nextUpIndex){//insert match of the sequence
+								//System.out.println("ENTER INSERT PART i:"+i+"addedBases++:"+addedBases);
 								while(insertsRegionsLengths[nextInsertPos]>0){
 									subSeq+=alignedSeq[(i-addedBases)];
 									addedBases++;
+									//System.out.println(" ++++addedBases++:"+addedBases);
 									//System.out.println(" *i:"+(i-addedBases)+" add:"+alignedSeq[(i-addedBases)]);
 									insertsRegionsLengths[nextInsertPos]--;
-								}
+								} 
+								
 								if (insertPositions.length>(nextInsertPos+1)){
 									nextInsertPos++;
 								}else nextUpIndex=alignedSeq.length;//which runs the normal match of the sequence loop until the end of the read 
@@ -365,7 +433,7 @@ public class VariationsManager {
 
 
 	public  void constructVariantMatrix() {
-		varMat=new int[varMatIndexes.size()][varMatIndexes.size()];
+		varExpMat=new int[varExpMatIndexes.size()][varExpMatIndexes.size()];
 
 	}
 
