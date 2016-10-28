@@ -37,6 +37,11 @@ public class PloidyPhaser {
 		for (int i = 0; i < vcfPaths.size(); i++) {//for each contig, a vcf file is associated
 			try {
 				VCFParser vcfPar = new VCFParser(vcfPaths.get(i).toFile());
+				System.out.println("");
+				System.out.println("NEXT TO DO ");
+				System.out.println("Check that all corrected Signatures in checkDetectedVariations are correct or rejected otherwise. ");
+				System.out.println("Replace the tempDetectedVariationsIds with the corrected ones ");
+				System.out.println("Add them to the matrix!! ");
 			} catch (FileNotFoundException e) {
 				e.printStackTrace();
 			} catch (InterruptedException e) {

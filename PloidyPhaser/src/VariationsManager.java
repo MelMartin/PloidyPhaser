@@ -169,49 +169,70 @@ public class VariationsManager {
 	private void checkDetectedVariations(List<String> tempDetectedVariationsIds) {
 		System.out.println( "   tempDetectedVariationsIds:"+tempDetectedVariationsIds);
 		List<String> correctedVariationsIds=new ArrayList<String>();
-		String id;
+		String idTempCheckVar;
 		int pos;
 		String expSignature;
 		for(int d=0;d<tempDetectedVariationsIds.size();d++){
 			
-			id=tempDetectedVariationsIds.get(d);
-			System.out.println ("  NEXT TO CHECK:  "+id );
+
+			idTempCheckVar=tempDetectedVariationsIds.get(d);
 			
-			if(varExprIds.get(id)==null){//error signature
-				PairPosSignature pps=getPairPosSignature(id);//split pos from expressed variation part of the id
+			
+			if(varExprIds.get(idTempCheckVar)==null){//we are interested in correcting variations if they have an error signature
+				
+				System.out.println ("  NEXT THAT NEEDS CHECK:  "+idTempCheckVar );
+				PairPosSignature pps=getPairPosSignature(idTempCheckVar);//split pos from expressed variation part of the id
 				pos=pps.pos;//position of var
 				expSignature=pps.sig;//expressed allele
 				
 				 System.out.println (" ****************************" );
-				 System.out.println (" **  id: "+id+ " * :"+pos+":-:"+expSignature+": ***** ");
+				 System.out.println (" **  id: "+idTempCheckVar+ " * :"+pos+"-"+expSignature+": ***** ");
 				 System.out.println (" **                       ***" );
 				 System.out.println (" *                         **" );
 				 
 				 if(expSignature.equals("-")){//the pos is not covered by the alignment (an expressed deletion covers this position)-> remove it
-					 System.out.println (tempDetectedVariationsIds.get(d)+"  removed BECAUSE OF '-' " );
+					 System.out.println (idTempCheckVar+"  removed BECAUSE OF '-' " );
 
 					 tempDetectedVariationsIds.remove(d);
-				 }else  if(expSignature.substring(1,2).equals("-")){ //remove extra '-'
-					 System.out.println (tempDetectedVariationsIds.get(d)+"  removed and replaced by "+pos+expSignature.substring(0,2) );
+				 }else  if(expSignature.length()>1 && expSignature.substring(1,2).equals("-")){ //remove extra '-'
+					 System.out.println (idTempCheckVar+"  (EXTRA -s)   Var Removed and replaced by "+pos+expSignature.substring(0,2) );
 					 tempDetectedVariationsIds.remove(d);
 					 correctedVariationsIds.add(pos+expSignature.substring(0,2));
 				   } else { 
-					   System.out.println ("   CHECKING COMVAR :" +tempDetectedVariationsIds.get(d));
-
+					   System.out.println ("   CHECKING COMBO-VARs FOR :" +idTempCheckVar);
+					   //TO DO : THIS PORTION SHOULD BE RECURSIVE FOR MORE RIGOUR (in long variations, there could also exist a sub position that needs to be corrected)
 					   //either is a combination of variations 
 					   boolean isAVariationComb=false;
 					   char[] correctedSig=expSignature.toCharArray();//the corrected version of the signature(initialize as the currently expressed)
-					   for (int esp=0;esp<expSignature.length();esp++){//for each expression signature position
+					   for (int esp=0;esp<expSignature.length();esp++){//for each sub-position of the expression
+						   
 						   //check existing variations in the corresponding positions
-						   int tp=pos+esp;// target position
+						   int tp=pos+esp;// target position (starting at 0 )
 						   String qID=expSignature.substring(esp,esp+1);//candidate char in query signature
 						   String candSig=(tp+qID);//candidate signature
 						   int indOfCandVariation;//index of Candidate Variation in tempDetectedVariaton
-						   if(tempDetectedVariationsIds.contains(candSig) ){//if the candidate exists
+						   
+						   //if the candidate exists for this subposition
+						   if(tempDetectedVariationsIds.contains(candSig) ){
+							   //check the expression of the candiate subposition
 							   indOfCandVariation=tempDetectedVariationsIds.indexOf(candSig);//gets its index
 							   isAVariationComb=tempDetectedVariationsIds.contains(candSig);
-							   PairPosSignature cpps=getPairPosSignature(tempDetectedVariationsIds.get(indOfCandVariation));
-							   correctedSig[esp]=varExprIds.get(candSig).ref.charAt(0);
+							
+							   System.out.println ("CANDIDATE COMBO-VAR candSig :" +candSig+": isAVariationComb?:"+isAVariationComb+" at ind "+indOfCandVariation );
+							   //System.out.print (" candidate COM-VAR:"+varExprIds.get("457C").outString()+" equals '457C'? :"+(candSig.equals("457C") +"  +")  );
+
+							   //PairPosSignature cpps=getPairPosSignature(tempDetectedVariationsIds.get(indOfCandVariation));
+							   
+							   if (varExprIds.containsKey(candSig)){
+								   correctedSig[esp]=varExprIds.get(candSig).ref.charAt(0);
+								   System.out.println ("CORRECTING "+idTempCheckVar+" at pos "+ esp+ " with  "+correctedSig[esp]); 
+							   }else{
+								   System.out.println ("BREAK LOOP for "+candSig+ "variation not registered in vcf file");
+								   break;
+							   }
+								 
+								   
+							   
 
 							  // System.out.print ("candSig :" +candSig+": isAVariationComb?:"+isAVariationComb+" at ind "+indOfCandVariation );
 							 //  System.out.print (" candidate var:"+varExprIds.get("457C").outString()+" equals '457C'? :"+(candSig.equals("457C") +"  +")  );
@@ -220,7 +241,14 @@ public class VariationsManager {
 						   }
 						   
 					   }
-					   System.out.println("correctedSig:"+new String(correctedSig));
+					   String correctedString=pos+new String(correctedSig);
+					   if (varExprIds.containsKey(correctedString)){
+						   correctedVariationsIds.add(correctedString);
+						   System.out.println("CORRECTED Sig:"+correctedString);
+					   }else{
+						   System.out.println("###### CORRECTED Sig:"+correctedString+ " not found in varExprIds");
+					   }
+					   
 					   //or an error to dismiss
 				   }
 				 
@@ -234,8 +262,8 @@ public class VariationsManager {
 				 	 
 				 
 			}else {//signature ok
-				pos=varExprIds.get(id).pos;
-				expSignature=varExprIds.get(id).expSignature;
+				pos=varExprIds.get(idTempCheckVar).pos;
+				expSignature=varExprIds.get(idTempCheckVar).expSignature;
 				//System.out.println (" **  id: "+id+ " * "+pos+" "+expSignature );
 			}
 			
