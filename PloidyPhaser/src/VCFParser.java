@@ -77,7 +77,7 @@ public class VCFParser {
 				ploidy=(int) PloidyPhaser.ploidies.get(chrom);
 				isPloidySolved=true;
 			}
-			//solve sample (general for all lines)
+			//solve sample field (general for all lines)
 			if (ploidy==1)sample="1";
 			else sample="0/1";
 			if( ploidy>2){					

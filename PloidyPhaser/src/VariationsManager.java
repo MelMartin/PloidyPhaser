@@ -25,7 +25,7 @@ public class VariationsManager {
 	HashMap<String,VariationData> varExprIds=new HashMap<String,VariationData>();//keeps track of (possible)_variation_expresion_identifiers<key> and 
 																				//the corresponding (possible)_variation_expresion VariationData (which contains a matIndex field)
 	List<VariationData> vcfVarLines = new ArrayList<VariationData>();//list of variations Positions where 'ref' different than 'alt'
-	int[][]varExpMat;//expressed variation connectivity matrix
+	VariationsConnectivityMatrix vcm;//expressed variation connectivity matrix
 
 
 	public VariationsManager(VCFParser vm){
@@ -33,6 +33,8 @@ public class VariationsManager {
 	}
 
 
+	
+	
 	public void registerPossibleVariationExpressions(VariationData vd){//for each variation position, two possible expressions are registered (Ref and alt)
 
 		vd.setVarExpMatrixIndex(varExpMatIndexesSize++);
@@ -102,6 +104,7 @@ public class VariationsManager {
 					//chek that vpInd is correctly positioned	
 					while(variationsPos[vpInd]<alStart)	vpInd++;//since bam is sorted, the index only increases
 					currentVpInd=vpInd;//actualize current variant position index
+					
 					if(alEnd>variationsPos[currentVpInd]){
 						System.out.println("bam:"+libraryName+" ct:"+ct+" ReadIndex:"+PloidyPhaser.readIndexes.get(readName) +" st:"+alStart+" end:"+alEnd+" length:"+rec.getReadLength()+" cig:"+rec.getCigar()+" readSeq:"+rec.getReadString()+" variationsPos["+currentVpInd+"]:"+variationsPos[currentVpInd]);
 						cigCount=new CigarCounter(rec.getCigar(),rec.getReadString());//new cigarCount for each read Sequence rec.getReadString()
@@ -125,16 +128,27 @@ public class VariationsManager {
 							}
 							currentVpInd=currentVpInd+i;
 						}
-						checkDetectedVariations(tempDetectedVariationsIds);
 						
 					}
 				}
-				//System.out.println( "   tempDetectedVariationsIds:"+tempDetectedVariationsIds);
+				tempDetectedVariationsIds=checkDetectedVariations(tempDetectedVariationsIds);
+				System.out.println( "         Corrected Variations Ids:"+tempDetectedVariationsIds);
+				
+				//...and finally: fill the matrix
+				for (int dvr=0;dvr<tempDetectedVariationsIds.size();dvr++){//for each detected variation (row)
+					for (int dvc=0;dvc<tempDetectedVariationsIds.size();dvc++){//for each detected variation (row)
+						if( dvc!=dvr){
+							int row=varExprIds.get(tempDetectedVariationsIds.get(dvr)).matrixIndex;
+							int col=varExprIds.get(tempDetectedVariationsIds.get(dvc)).matrixIndex;
+							vcm.addConection(row,col,(PloidyPhaser.readIndexes.get(readName)));
+						}
+					}
+				}
 				ct++;
+				
 			}
 			
-			
-			
+
 			iter.close();
 			inputSam.close();
 		}
@@ -166,17 +180,17 @@ public class VariationsManager {
 		}
 	}
 
-	private void checkDetectedVariations(List<String> tempDetectedVariationsIds) {
-		System.out.println( "   tempDetectedVariationsIds:"+tempDetectedVariationsIds);
+	private List<String> checkDetectedVariations(List<String> tempDetectedVariationsIds) {
+		System.out.println( " Temporary Detected VariationsIds:"+tempDetectedVariationsIds);
 		List<String> correctedVariationsIds=new ArrayList<String>();
 		String idTempCheckVar;
 		int pos;
 		String expSignature;
-		for(int d=0;d<tempDetectedVariationsIds.size();d++){
-			
-
-			idTempCheckVar=tempDetectedVariationsIds.get(d);
-			
+		int[]tempVarsToRemoveIndexes=new int[tempDetectedVariationsIds.size()];
+		int tempVarsToRemove=0;
+		
+		for(int d=0;d<tempDetectedVariationsIds.size();d++){			
+			idTempCheckVar=tempDetectedVariationsIds.get(d);			
 			
 			if(varExprIds.get(idTempCheckVar)==null){//we are interested in correcting variations if they have an error signature
 				
@@ -185,24 +199,26 @@ public class VariationsManager {
 				pos=pps.pos;//position of var
 				expSignature=pps.sig;//expressed allele
 				
-				 System.out.println (" ****************************" );
 				 System.out.println (" **  id: "+idTempCheckVar+ " * :"+pos+"-"+expSignature+": ***** ");
-				 System.out.println (" **                       ***" );
-				 System.out.println (" *                         **" );
+
 				 
 				 if(expSignature.equals("-")){//the pos is not covered by the alignment (an expressed deletion covers this position)-> remove it
 					 System.out.println (idTempCheckVar+"  removed BECAUSE OF '-' " );
-
-					 tempDetectedVariationsIds.remove(d);
+					 tempVarsToRemoveIndexes[tempVarsToRemove++]=d;
+					 
 				 }else  if(expSignature.length()>1 && expSignature.substring(1,2).equals("-")){ //remove extra '-'
+					 
 					 System.out.println (idTempCheckVar+"  (EXTRA -s)   Var Removed and replaced by "+pos+expSignature.substring(0,2) );
-					 tempDetectedVariationsIds.remove(d);
+					 tempVarsToRemoveIndexes[tempVarsToRemove++]=d;
 					 correctedVariationsIds.add(pos+expSignature.substring(0,2));
+					 
 				   } else { 
 					   System.out.println ("   CHECKING COMBO-VARs FOR :" +idTempCheckVar);
 					   //TO DO : THIS PORTION SHOULD BE RECURSIVE FOR MORE RIGOUR (in long variations, there could also exist a sub position that needs to be corrected)
-					   //either is a combination of variations 
-					   boolean isAVariationComb=false;
+					  
+					   //either is a combination of variations which signature can be corrected, or it is an error to dismiss
+					   
+					   //boolean isAVariationCombo=false;
 					   char[] correctedSig=expSignature.toCharArray();//the corrected version of the signature(initialize as the currently expressed)
 					   for (int esp=0;esp<expSignature.length();esp++){//for each sub-position of the expression
 						   
@@ -216,61 +232,57 @@ public class VariationsManager {
 						   if(tempDetectedVariationsIds.contains(candSig) ){
 							   //check the expression of the candiate subposition
 							   indOfCandVariation=tempDetectedVariationsIds.indexOf(candSig);//gets its index
-							   isAVariationComb=tempDetectedVariationsIds.contains(candSig);
+							   //isAVariationCombo=tempDetectedVariationsIds.contains(candSig);
 							
-							   System.out.println ("CANDIDATE COMBO-VAR candSig :" +candSig+": isAVariationComb?:"+isAVariationComb+" at ind "+indOfCandVariation );
-							   //System.out.print (" candidate COM-VAR:"+varExprIds.get("457C").outString()+" equals '457C'? :"+(candSig.equals("457C") +"  +")  );
-
-							   //PairPosSignature cpps=getPairPosSignature(tempDetectedVariationsIds.get(indOfCandVariation));
+							   System.out.println ("CANDIDATE COMBO-VAR candSig :" +candSig+/*": isAVariationComb?:"+isAVariationCombo+*/" at ind "+indOfCandVariation );
 							   
 							   if (varExprIds.containsKey(candSig)){
 								   correctedSig[esp]=varExprIds.get(candSig).ref.charAt(0);
 								   System.out.println ("CORRECTING "+idTempCheckVar+" at pos "+ esp+ " with  "+correctedSig[esp]); 
-							   }else{
+							   }else{//the VariationCombo is not registered in the vcf file (probably a sequencng and/or alignment error)
 								   System.out.println ("BREAK LOOP for "+candSig+ "variation not registered in vcf file");
+								   
 								   break;
 							   }
-								 
-								   
-							   
-
-							  // System.out.print ("candSig :" +candSig+": isAVariationComb?:"+isAVariationComb+" at ind "+indOfCandVariation );
-							 //  System.out.print (" candidate var:"+varExprIds.get("457C").outString()+" equals '457C'? :"+(candSig.equals("457C") +"  +")  );
-
-							   
 						   }
 						   
 					   }
 					   String correctedString=pos+new String(correctedSig);
-					   if (varExprIds.containsKey(correctedString)){
-						   correctedVariationsIds.add(correctedString);
+					   if (varExprIds.containsKey(correctedString)){//the correction has been succesful
+						   tempVarsToRemoveIndexes[tempVarsToRemove++]=d;//remove old
+						   correctedVariationsIds.add(correctedString);//replace by new
 						   System.out.println("CORRECTED Sig:"+correctedString);
-					   }else{
+					   }else{//the VariationCombo is not registered in the vcf file
+						   tempVarsToRemoveIndexes[tempVarsToRemove++]=d;
 						   System.out.println("###### CORRECTED Sig:"+correctedString+ " not found in varExprIds");
 					   }
 					   
-					   //or an error to dismiss
+			
 				   }
-				 
-				 
-				 
-				 
-				 
-				 System.out.println (" *                         **" );
-				 System.out.println (" **                       ***" );
+
 				 System.out.println (" ****************************" );
 				 	 
 				 
-			}else {//signature ok
-				pos=varExprIds.get(idTempCheckVar).pos;
-				expSignature=varExprIds.get(idTempCheckVar).expSignature;
-				//System.out.println (" **  id: "+id+ " * "+pos+" "+expSignature );
-			}
-			
-			//
-
+			} //else signature ok         
 		}
-		if (correctedVariationsIds.size()>1)tempDetectedVariationsIds.addAll(correctedVariationsIds);
+
+		//System.out.println ("! tempDetectedVariationsIds:"+tempDetectedVariationsIds );
+		//remove bad variations...
+		for (int r=tempVarsToRemove-1;r>=0;r--){		
+			tempDetectedVariationsIds.remove(tempVarsToRemoveIndexes[r]);
+		}
+		//System.out.println ("!! correctedVariationsIds:"+correctedVariationsIds );
+		
+		
+		//...and add the corrected ones		
+		if (correctedVariationsIds.size()>0){
+			tempDetectedVariationsIds.addAll(correctedVariationsIds);
+		}
+		
+		tempDetectedVariationsIds.sort(null);
+		//System.out.println ("!!! tempDetectedVariationsIds:"+tempDetectedVariationsIds );
+		
+		return tempDetectedVariationsIds;
 	}
 
 
@@ -292,7 +304,7 @@ public class VariationsManager {
 			//System.out.println( "   CurrVar:"+curVar.outString()+" GETSUBSEQ "+"("+subSeqBeg+"/"+subSeqEnd+"):"+subSeq);
 
 		}
-		System.out.println(" DETECTED "+"("+subSeqBeg+"/"+subSeqEnd+"):"+subSeq);
+		//System.out.println(" DETECTED "+"("+subSeqBeg+"/"+subSeqEnd+"):"+subSeq);
 
 		return subSeq;
 
@@ -504,7 +516,7 @@ public class VariationsManager {
 
 
 	public  void constructVariantMatrix() {
-		varExpMat=new int[varExpMatIndexes.size()][varExpMatIndexes.size()];
+		vcm= new VariationsConnectivityMatrix(varExpMatIndexes.size());
 
 	}
 
@@ -540,6 +552,8 @@ public class VariationsManager {
 	}
 
 
+
+	
 	class ReadContainsException extends Exception
 	{
 		/**
