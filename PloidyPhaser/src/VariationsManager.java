@@ -74,8 +74,13 @@ public class VariationsManager {
 
 	private void iterateSamFile(int[] variationsPos) {
 		SAMFileReader inputSam;
+		int lastVarPos =variationsPos[variationsPos.length-1];System.out.print("lastVarPos:"+lastVarPos);
+
 		for (int bi=0;bi<PloidyPhaser.bamPaths.size();bi++){//for each bam file
 			inputSam = new SAMFileReader(PloidyPhaser.bamPaths.get(bi));
+			
+			
+
 			inputSam.setValidationStringency(ValidationStringency.SILENT);
 			SAMRecordIterator iter = inputSam.iterator();
 			int ct = 0;
@@ -87,15 +92,15 @@ public class VariationsManager {
 			int vpInd=0;//index pointing to the variationPos vector where the read maps its first variation
 			int currentVpInd=0;//index of the current variation
 			CigarCounter cigCount;
-			List<String> tempDetectedVariationsIds=null;
-			while (iter.hasNext() && ct<1500 ) {//iterates the sam file (for each read)
+			List<String> tempDetectedVariationsIds=new ArrayList<String>();
+			while (iter.hasNext() /*&& ct<1500 */ ) {//iterates the sam file (for each read)
 				SAMRecord rec = iter.next();//read line
 				readName=rec.getReadName()+libraryName;
 				alStart = rec.getAlignmentStart();
 				alEnd = rec.getReadLength()+alStart;
 
 				//identify  variation signatures of the read
-				if (alStart<10000 && ct<1500 ){	
+				if (alStart<lastVarPos /*&& ct<1500 */){	//alStart<lastVarPos avoids any reads that doesn't starts before the last Variation position
 					tempDetectedVariationsIds=new ArrayList<String>();
 					
 					
@@ -106,7 +111,7 @@ public class VariationsManager {
 					currentVpInd=vpInd;//actualize current variant position index
 					
 					if(alEnd>variationsPos[currentVpInd]){
-						System.out.println("bam:"+libraryName+" ct:"+ct+" ReadIndex:"+PloidyPhaser.readIndexes.get(readName) +" st:"+alStart+" end:"+alEnd+" length:"+rec.getReadLength()+" cig:"+rec.getCigar()+" readSeq:"+rec.getReadString()+" variationsPos["+currentVpInd+"]:"+variationsPos[currentVpInd]);
+						System.out.print("bam:"+libraryName+" ct:"+ct+" ReadIndex:"+PloidyPhaser.readIndexes.get(readName) +" st:"+alStart+" end:"+alEnd+" length:"+rec.getReadLength()+" cig:"+rec.getCigar()+" readSeq:"+rec.getReadString()+" variationsPos["+currentVpInd+"]:"+variationsPos[currentVpInd]);
 						cigCount=new CigarCounter(rec.getCigar(),rec.getReadString());//new cigarCount for each read Sequence rec.getReadString()
 
 						//while the read spans positions with a variation
@@ -130,6 +135,7 @@ public class VariationsManager {
 						}
 						
 					}
+					
 				}
 				tempDetectedVariationsIds=checkDetectedVariations(tempDetectedVariationsIds);
 				System.out.println( "         Corrected Variations Ids:"+tempDetectedVariationsIds);
@@ -138,9 +144,13 @@ public class VariationsManager {
 				for (int dvr=0;dvr<tempDetectedVariationsIds.size();dvr++){//for each detected variation (row)
 					for (int dvc=0;dvc<tempDetectedVariationsIds.size();dvc++){//for each detected variation (row)
 						if( dvc!=dvr){
+							try{
 							int row=varExprIds.get(tempDetectedVariationsIds.get(dvr)).matrixIndex;
 							int col=varExprIds.get(tempDetectedVariationsIds.get(dvc)).matrixIndex;
 							vcm.addConection(row,col,(PloidyPhaser.readIndexes.get(readName)));
+							}catch (Exception e){
+								System.err.println(" Variation error at row "+tempDetectedVariationsIds.get(dvr)+" and column :"+tempDetectedVariationsIds.get(dvc));
+							}
 						}
 					}
 				}
@@ -194,26 +204,27 @@ public class VariationsManager {
 			
 			if(varExprIds.get(idTempCheckVar)==null){//we are interested in correcting variations if they have an error signature
 				
-				System.out.println ("  NEXT THAT NEEDS CHECK:  "+idTempCheckVar );
+				System.out.print ("*******NEXT THAT NEEDS CHECK:  "+idTempCheckVar );
 				PairPosSignature pps=getPairPosSignature(idTempCheckVar);//split pos from expressed variation part of the id
 				pos=pps.pos;//position of var
 				expSignature=pps.sig;//expressed allele
 				
-				 System.out.println (" **  id: "+idTempCheckVar+ " * :"+pos+"-"+expSignature+": ***** ");
+				 System.out.println (" **  id: "+idTempCheckVar+ " * :"+pos+"| |"+expSignature+": ***** ");
 
 				 
-				 if(expSignature.equals("-")){//the pos is not covered by the alignment (an expressed deletion covers this position)-> remove it
+				 if(expSignature.substring(0,1).equals("-")){//the pos is not covered by the alignment (an expressed deletion covers this position)-> remove it
 					 System.out.println (idTempCheckVar+"  removed BECAUSE OF '-' " );
 					 tempVarsToRemoveIndexes[tempVarsToRemove++]=d;
 					 
 				 }else  if(expSignature.length()>1 && expSignature.substring(1,2).equals("-")){ //remove extra '-'
 					 
 					 System.out.println (idTempCheckVar+"  (EXTRA -s)   Var Removed and replaced by "+pos+expSignature.substring(0,2) );
+					 
 					 tempVarsToRemoveIndexes[tempVarsToRemove++]=d;
 					 correctedVariationsIds.add(pos+expSignature.substring(0,2));
 					 
 				   } else { 
-					   System.out.println ("   CHECKING COMBO-VARs FOR :" +idTempCheckVar);
+					   System.out.print ("   CHECKING COMBO-VARs FOR :" +idTempCheckVar);
 					   //TO DO : THIS PORTION SHOULD BE RECURSIVE FOR MORE RIGOUR (in long variations, there could also exist a sub position that needs to be corrected)
 					  
 					   //either is a combination of variations which signature can be corrected, or it is an error to dismiss
@@ -234,13 +245,13 @@ public class VariationsManager {
 							   indOfCandVariation=tempDetectedVariationsIds.indexOf(candSig);//gets its index
 							   //isAVariationCombo=tempDetectedVariationsIds.contains(candSig);
 							
-							   System.out.println ("CANDIDATE COMBO-VAR candSig :" +candSig+/*": isAVariationComb?:"+isAVariationCombo+*/" at ind "+indOfCandVariation );
+							   System.out.println ("   CANDIDATE COMBO-VAR candSig :" +candSig+/*": isAVariationComb?:"+isAVariationCombo+*/" at ind "+indOfCandVariation );
 							   
 							   if (varExprIds.containsKey(candSig)){
 								   correctedSig[esp]=varExprIds.get(candSig).ref.charAt(0);
-								   System.out.println ("CORRECTING "+idTempCheckVar+" at pos "+ esp+ " with  "+correctedSig[esp]); 
+								   System.out.print ("    CORRECTING "+idTempCheckVar+" at pos "+ esp+ " with  "+correctedSig[esp]); 
 							   }else{//the VariationCombo is not registered in the vcf file (probably a sequencng and/or alignment error)
-								   System.out.println ("BREAK LOOP for "+candSig+ "variation not registered in vcf file");
+								   System.out.println ("     BREAK LOOP for "+candSig+ "variation not registered in vcf file");
 								   
 								   break;
 							   }
@@ -251,7 +262,7 @@ public class VariationsManager {
 					   if (varExprIds.containsKey(correctedString)){//the correction has been succesful
 						   tempVarsToRemoveIndexes[tempVarsToRemove++]=d;//remove old
 						   correctedVariationsIds.add(correctedString);//replace by new
-						   System.out.println("CORRECTED Sig:"+correctedString);
+						   System.out.println("     CORRECTED Sig:"+correctedString);
 					   }else{//the VariationCombo is not registered in the vcf file
 						   tempVarsToRemoveIndexes[tempVarsToRemove++]=d;
 						   System.out.println("###### CORRECTED Sig:"+correctedString+ " not found in varExprIds");
@@ -346,7 +357,7 @@ public class VariationsManager {
 			//check if the sequence needs to be altered (an all match cigar is going to have the same sequence before and after this class treatment)
 			if(cigarElems.size()==1 && cigarElems.get(0).getOperator().equals(CigarOperator.M)){
 				isAllM=true;
-				System.out.println( "cigarElems: ALL Ms");
+				System.out.println( "     cigarElems: ALL Ms");
 			}else{
 
 				exploreCigar(cigar);

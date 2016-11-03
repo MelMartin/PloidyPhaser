@@ -19,12 +19,11 @@ public class VariationsConnectivityMatrix {
 
 
 	public void addConection(int row, int col, Integer readIndex) {
-		System.out.println (" VariationsConnectivityMatrix(): ENTERED");
+		/*
 		if(varExpMat[row][col].isNull()){
-			 
-
 			varExpMat[row][col].initialize();
 		}
+		*/
 		varExpMat[row][col].add(readIndex);
 		
 	}
@@ -37,17 +36,17 @@ public class VariationsConnectivityMatrix {
     	List <Integer> ReadsIndexes;
     	
     	private ReadList (){
-    		ReadsIndexes=null;
+    		ReadsIndexes=new ArrayList<Integer>();
     	}
     	
     	private boolean isNull(){    		
-    		System.out.println (" isNull(): PASSED");
     		return ReadsIndexes==null;
     	}
     	
     	private void initialize(){
     		ReadsIndexes=new ArrayList<Integer>();
     	}
+    	
     	private boolean add(Integer readIndex){
     		return ReadsIndexes.add(readIndex);
     	}

@@ -38,10 +38,8 @@ public class PloidyPhaser {
 			try {
 				VCFParser vcfPar = new VCFParser(vcfPaths.get(i).toFile());
 				System.out.println("");
-				System.out.println("NEXT TO DO ");
-				System.out.println("Check that all corrected Signatures in checkDetectedVariations are correct or rejected otherwise. ");
-				System.out.println("Replace the tempDetectedVariationsIds with the corrected ones ");
-				System.out.println("Add them to the matrix!! ");
+				//System.out.println("NEXT TO DO ");
+				//System.out.println("Add them to the matrix!! ");
 			} catch (FileNotFoundException e) {
 				e.printStackTrace();
 			} catch (InterruptedException e) {
@@ -98,7 +96,7 @@ public class PloidyPhaser {
 		SAMFileReader inputSam;
 		String libraryName;
 		int ct=0;
-		for (int bi=0;bi<PloidyPhaser.bamPaths.size();bi++){
+		for (int bi=0;bi<PloidyPhaser.bamPaths.size();bi++){//for each bam index bi
 			
 			inputSam = new SAMFileReader(PloidyPhaser.bamPaths.get(bi));
 			
