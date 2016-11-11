@@ -559,7 +559,7 @@ public class VariationsManager {
 							}
 						}
 					}
-				}else subSeq= original.substring(beg,end);
+				}else subSeq= original.substring(beg,end);//the cigar is all Matches
 			}catch (Exception e){
 				System.err.print("Error in VariationsManager getSubseq("+ beg+", "+end+")" +" read sequence:"+original+" cigar:");
 				for (int ce=0;ce<cigarElems.size();ce++){					
