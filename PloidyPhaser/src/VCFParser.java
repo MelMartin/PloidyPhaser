@@ -22,7 +22,7 @@ public class VCFParser {
 		vcfVariantShortExtractor(vcfFile.getAbsolutePath());//extracts only the repeated variants in a short format: chromName, pos, ref, alt
 		varMan.constructVariantMatrix();
 		varMan.fillVariantMatrix();
-		//varMan.colourMatrix(2);//activate vcm.printMatrix(20); in varMan.fillVariantMatrix()
+		varMan.colourMatrix(2);//activate vcm.printMatrix(20); in varMan.fillVariantMatrix()
 
 	}
 

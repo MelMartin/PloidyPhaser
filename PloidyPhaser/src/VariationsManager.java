@@ -113,7 +113,7 @@ public class VariationsManager {
 							//System.err.println("Read Index error, readName:"+readName);
 						}
 
-						if (alStart>760 && alEnd<950)System.out.println("bam:"+libraryName+" ct:"+ct+" ReadIndex:"+PloidyPhaser.readIndexes.get(readName) +" st:"+alStart+" end:"+alEnd+" length:"+rec.getReadLength()+" cig:"+rec.getCigar()+" readSeq:"+rec.getReadString()+" variationsPos["+currentVpInd+"]:"+variationsPos[currentVpInd]);
+						//if (alStart>760 && alEnd<950)System.out.println("bam:"+libraryName+" ct:"+ct+" ReadIndex:"+PloidyPhaser.readIndexes.get(readName) +" st:"+alStart+" end:"+alEnd+" length:"+rec.getReadLength()+" cig:"+rec.getCigar()+" readSeq:"+rec.getReadString()+" variationsPos["+currentVpInd+"]:"+variationsPos[currentVpInd]);
 
 
 						cigCount=new CigarCounter(rec.getCigar(),rec.getReadString(),readIndex);//new cigarCount for each read Sequence rec.getReadString()
@@ -146,7 +146,6 @@ public class VariationsManager {
 					//System.out.println(" end");
 				}else break;//alStart > lastVarPos
 				tempDetectedVariationsIds=checkDetectedVariations(tempDetectedVariationsIds,cigCount);
-				if (alStart>760 && alEnd<950)System.out.println(" *read vars before check"+tempDetectedVariationsIds);
 				//add this paired end variations to the readIndex variations (joint both paired end's variations in a single hashmap)
 				if(readIndexVariationsIds.containsKey(readIndex) && readIndex!=0){//if the first paired end of the read has been registered. (readIndex=0 when there is a readIndex error)		
 					for (int ndv=0;ndv<tempDetectedVariationsIds.size();ndv++){//add the variations from the second paired end of the read
@@ -156,7 +155,7 @@ public class VariationsManager {
 
 				}else if (readIndex!=0){//readIndex=0 when there is a readIndex error
 					readIndexVariationsIds.put(readIndex, tempDetectedVariationsIds);
-					if (alStart>760 && alEnd<950) System.out.println(" read new"+readIndex+" vars:"+tempDetectedVariationsIds+ " hasinsert?:"+cigCount.hasInsert);
+					//if (alStart>760 && alEnd<950) System.out.println(" read new"+readIndex+" vars:"+tempDetectedVariationsIds+ " hasinsert?:"+cigCount.hasInsert);
 
 				}
 
@@ -186,7 +185,8 @@ public class VariationsManager {
 						//if (row==col)System.out.println	((dvr+dvc)+" dvr:"+dvr+" dvc:"+dvc+" readIndex:"+readIndex+" r==c ACCIDENT at row "+variationIDs.get(dvr)+" and column :"+variationIDs.get(dvc)+" r:"+row+" col:"+col+" variationIDs:"+variationIDs);
 
 					}catch (Exception e){
-						System.err.println(" Variation error at row "+variationIDs.get(dvr)+" and column :"+variationIDs.get(dvc)+" r:"+row+" col:"+col+" variationIDs:"+variationIDs);
+						//if(!variationIDs.get(dvr).equals("855A-") && !variationIDs.get(dvc).equals("855A-"))	
+							System.err.println(" Variation error at row "+variationIDs.get(dvr)+" and column :"+variationIDs.get(dvc)+" r:"+row+" col:"+col+" variationIDs:"+variationIDs);
 					}
 				}
 			}
@@ -232,6 +232,7 @@ public class VariationsManager {
 
 			if(varExprIds.get(idTempCheckVar)==null){//we are interested in correcting variations if they have an error signature
 
+				
 				//System.out.print ("*******NEXT THAT NEEDS CHECK:  "+idTempCheckVar );
 				PairPosSignature pps=getPairPosSignature(idTempCheckVar);//split pos from expressed variation part of the id
 				pos=pps.pos;//position of var
@@ -243,18 +244,17 @@ public class VariationsManager {
 				if(expSignature.substring(0,1).equals("-")){//the pos is not covered by the alignment (an expressed deletion covers this position)-> remove it
 					//System.out.println (idTempCheckVar+"  removed BECAUSE OF '-' " );
 					tempVarsToRemoveIndexes[tempVarsToRemove++]=d;
-
-				}else  if(expSignature.length()>1 && expSignature.substring(1,2).equals("-")){ //remove extra '-'
-
+				}else  if(expSignature.length()>2 && expSignature.substring(1,2).equals("-") ){ //remove extra '-'
+				
 					//System.out.println (idTempCheckVar+"  (EXTRA -s)   Var Removed and replaced by "+pos+expSignature.substring(0,2) );
 
 					tempVarsToRemoveIndexes[tempVarsToRemove++]=d;
 					correctedVariationsIds.add(pos+expSignature.substring(0,2));
-
+	
 				} else { 
 					//System.out.print ("   CHECKING COMBO-VARs FOR :" +idTempCheckVar);
 					//TO DO : THIS PORTION SHOULD BE RECURSIVE FOR MORE RIGOUR (in long variations, there could also exist a sub position that needs to be corrected)
-
+					
 					//either is a combination of variations which signature can be corrected, or it is an error to dismiss
 
 					//boolean isAVariationCombo=false;
@@ -288,7 +288,6 @@ public class VariationsManager {
 					if (varExprIds.containsKey(correctedString)){//the correction has been succesful
 						tempVarsToRemoveIndexes[tempVarsToRemove++]=d;//remove old
 						correctedVariationsIds.add(correctedString);//replace by new
-						//System.out.println("     CORRECTED Sig:"+correctedString);
 					}else{//the VariationCombo is not registered in the vcf file
 						tempVarsToRemoveIndexes[tempVarsToRemove++]=d;
 						//System.out.println("###### CORRECTED Sig:"+correctedString+ " not found in varExprIds");
@@ -338,12 +337,11 @@ public class VariationsManager {
 
 		if(subSeqEnd<=readLength  && cigCount.isValidRead){	
 			subSeq=cigCount.getSubseq(subSeqBeg, subSeqEnd, curVar);//get the aligned read subsequence corresponding to the pertinent positions
+			/*
 			if(curVar.pos==855){
-				System.out.println( "   CurrVar:"+curVar.outString()+" GETSUBSEQ "+"("+subSeqBeg+"/"+subSeqEnd+"):"+subSeq);
-				if (!cigCount.hasInsert && curVar.isInsert){
-
-				}
+				System.out.println( "   CurrVar:"+curVar.outString()+" GETSUBSEQ "+"("+subSeqBeg+"/"+subSeqEnd+"):"+subSeq+ " readSeq:"+readSeq + " cigar:"+cigCount.cigar);
 			}
+			*/
 
 		}
 		//System.out.println(" DETECTED "+"("+subSeqBeg+"/"+subSeqEnd+"):"+subSeq);
@@ -379,10 +377,11 @@ public class VariationsManager {
 		boolean hasInsert=false;
 		int addedBases=0;//keeps track of inserted bases to a getSubseq() request
 		int nextUpIndex=0;//keeps track of upper bound index of sequence to getSubseq() request
-
+		Cigar cigar;
 
 
 		public CigarCounter(Cigar cigar,String readSeq,int readIndex){
+			this.cigar=cigar;
 			original =readSeq;
 			cigarElems=cigar.getCigarElements();
 			//check if the sequence needs to be altered (an all match cigar is going to have the same sequence before and after this class treatment)
@@ -393,7 +392,7 @@ public class VariationsManager {
 
 				exploreCigar(cigar);
 				alignedSeq=new char[totalNewBases];
-				if (tempReadIndexes.contains(readIndex))System.out.print( "cigarElems:");
+				//if (tempReadIndexes.contains(readIndex))System.out.print( "cigarElems:");
 
 
 				for (int e=0;e<cigarElems.size();e++){					
@@ -416,7 +415,7 @@ public class VariationsManager {
 					System.out.println( );
 				}
 				 */
-
+				
 			}
 
 		}
@@ -496,29 +495,24 @@ public class VariationsManager {
 		private String getSubseq(int beg,int end, VariationData curVar){
 			String subSeq="";
 			
-			boolean cigarHasInsertAtPos=false;
+			
+			boolean cigarHasMatchAtPos=false;
 			//determine if the cigar has an insert at the position of the begining of this subseq
-			if (!isAllM && hasInsert){
-				for (int i=0;i<insertPositions.length;i++){
-					if(insertPositions[i]==beg+1){
-						cigarHasInsertAtPos=true;
-						System.out.println("    --curVar:"+curVar.id+" --------   cigar HasInsertAtPos:"+(beg+1)+" original seq:"+original);
-					}
+			if (curVar.isInsert  && (getCigarOperatorAtPos(beg+2)==CigarOperator.M  || getCigarOperatorAtPos(beg+2)==CigarOperator.EQ) ){//the variation concerns an insert but the position is a match
+				if (!isAllM ){//complex cigar
+				return alignedSeq[beg]+"-";
+				}else {//all Ms
+					return original.substring(beg,beg+1)+"-";
 				}
 			}
-			
-			
-			
+
+			//For all the rest... (mastercard)
 			try{
-
-
 				if (!isAllM ){//complex cigar
 					int nextInsertPos=0;
 
 					for (int i=beg;i<end;i++){
-						if(!hasInsert){//cigar has no insert. 
-							
-							
+						if(!hasInsert){//cigar has no insert.
 							if(i<alignedSeq.length){
 								subSeq+=alignedSeq[i];
 							}else {
@@ -526,7 +520,7 @@ public class VariationsManager {
 								isValidRead=false;
 								break;
 							}
-						}else{//if it has at least an insert 
+						}else{//if cigar has at least an insert 
 							if(i<alignedSeq.length ){
 								//System.out.print("nextInsertPos:"+nextInsertPos+ " insertPositions.length:"+insertPositions.length+" i:"+i);
 
@@ -559,7 +553,9 @@ public class VariationsManager {
 							}
 						}
 					}
-				}else subSeq= original.substring(beg,end);//the cigar is all Matches
+				}else {//cigar is all M's
+						 subSeq= original.substring(beg,end);//the cigar is all Matches
+				}
 			}catch (Exception e){
 				System.err.print("Error in VariationsManager getSubseq("+ beg+", "+end+")" +" read sequence:"+original+" cigar:");
 				for (int ce=0;ce<cigarElems.size();ce++){					
@@ -571,8 +567,27 @@ public class VariationsManager {
 			}
 			return subSeq;
 		}
-	}
 
+		private CigarOperator getCigarOperatorAtPos(int pos) {
+			int ct=0;
+			for (int i=0;i<cigarElems.size();i++){
+				int currOperatorLength=cigarElems.get(i).getLength();
+				//System.out.print( "currOperatorLength:"+currOperatorLength);
+				while(currOperatorLength>0){
+					currOperatorLength--;
+					ct++;
+					if (pos==ct){
+						return cigarElems.get(i).getOperator();
+					}
+				}	
+			}
+			return cigarElems.get(cigarElems.size()).getOperator();
+		}
+		
+		
+	}
+	
+	
 
 
 	public  void constructVariantMatrix() {
