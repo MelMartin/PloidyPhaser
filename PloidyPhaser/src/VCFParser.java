@@ -10,6 +10,7 @@ import java.util.Scanner;
 public class VCFParser {
 	
 	String header="";//vcf Header
+	
 	//List<VariationData> variations = new ArrayList<VariationData>();
 	String outputCleanFile="" ;
 	File vcfFile;

@@ -650,28 +650,111 @@ public class VariationsManager {
 		System.out.println("colourMatrix ("+minReadsThreshold+")");
 
 		//find Seed Nodes
-
-		//count number of conexions per varation
+		
+		//variables
+		int conectivityWeight;//number of Reads that are connected to that node (through al connections)
+		int prevVarConWeight=0;//keeps track of the number of reads (coneectivity weight) in the previous Variation
+		VariationData vd=varExprIds.get(varExpMatIndexes.get(0));//current Variation (Node) being examined
+		VariationData preVd=vd;//keeps track of the previous Variation
+		int totalPerPos=0;//sum of nb or reads per Variation expressions (2 per variation) .		
+		int contigPloidy=(int) PloidyPhaser.ploidies.get(vd.name);//get the contig ploidy from first vcf call
+		
+		//variables for dealing with indels positions
+		boolean inDelPrecedes=false;
+		int nbOfInDelsPosRemaining=0;
+		int preIndelPos=0;//keeps track of the Variation Position that contains the indel
+		int estimatedPloidyRemaining=contigPloidy;
+		//count number of conexions per variation
 		for (int r=0;r<vcm.matSize;r++){//for all variations (per row)
-			int conectivityDegree=0;
-			int c;
-			System.out.print(varExpMatIndexes.get(r)+": ");
+			conectivityWeight=0;
+			int c;//column number
+			vd=varExprIds.get(varExpMatIndexes.get(r));
+			System.out.print(" "+vd.pos+"/"+vd.expSignature+": ");
 
 			for ( c=0;c<r;c++){//with the fixed row, move through the columns until r=c
 				if(vcm.getReadList(r, c).size()>minReadsThreshold) {
-					conectivityDegree+=vcm.getReadList(r, c).size();
+					conectivityWeight+=vcm.getReadList(r, c).size();
 					//System.out.print(" "+r+"/"+c+":"+vcm.getReadList(r, c).size());
 				}
 			}
 			c=r;//now we fix the column and move through the rest of the rows 
 			for (int rr=c;rr<vcm.matSize;rr++){
 				if(vcm.getReadList(rr, c).size()>minReadsThreshold) {
-					conectivityDegree+=vcm.getReadList(rr, c).size();
-					//System.out.print(" "+rr+"/"+c+":"+vcm.getReadList(rr, c).size());
+					conectivityWeight+=vcm.getReadList(rr, c).size();
 				}
 			}
-			System.out.println(conectivityDegree);
+			System.out.print(conectivityWeight);
+			
+			if (r%2==1){//if it is the alternative expresion of the variation
+				totalPerPos+=conectivityWeight;
+			}else {//it is the first expression of the variation (REference)
+				totalPerPos=conectivityWeight;
+				preVd=vd;
+				prevVarConWeight=conectivityWeight;
+			}
+			System.out.print(" tot:"+totalPerPos);
+			
+			
+			//variables to estimate if a node is crossed by an isolated colour or it's a mix of diffferent haplotypes
+			int expectedIsolatedNodeRatio=0;;//Theoretical ratio of totalNbOfReads/k , which correspond to an isolated colour in the connectivity graph
+			int upLimitVariation=0;
+			int downLimitVariaiton=0;
+			
+			//the expectedIsolatedNodeRatio, upLimit and downLimit are computed differently if the position is precedeed by an indel variation or not
+			if(inDelPrecedes  ){//estimation preceeded by indel
+				
+				if(((vd.pos-preIndelPos)>nbOfInDelsPosRemaining)){
+					System.out.print("nbOfInDelsPosRemaining:"+nbOfInDelsPosRemaining+" - "+(vd.pos-preIndelPos)+" = ");
+					nbOfInDelsPosRemaining-=(vd.pos-preIndelPos);
+					System.out.print(nbOfInDelsPosRemaining);
+					expectedIsolatedNodeRatio= totalPerPos/contigPloidy;//Theoretical ratio of totalNbOfReads/k , which correspond to an isolated colour in the connectivity graph
+					upLimitVariation=expectedIsolatedNodeRatio+(expectedIsolatedNodeRatio/5);
+					downLimitVariaiton=expectedIsolatedNodeRatio-(expectedIsolatedNodeRatio/2);
+				}else inDelPrecedes=false;
+				
+			}else{//normal estimation (not preceeeded by indel)
+				
+				expectedIsolatedNodeRatio= totalPerPos/contigPloidy;//Theoretical ratio of totalNbOfReads/k , which correspond to an isolated colour in the connectivity graph
+				upLimitVariation=expectedIsolatedNodeRatio+(expectedIsolatedNodeRatio/5);
+				downLimitVariaiton=expectedIsolatedNodeRatio-(expectedIsolatedNodeRatio/2);
+			}
+			System.out.print(" IsolatedNodeRatio:"+expectedIsolatedNodeRatio+ " up:"+upLimitVariation+" down:"+downLimitVariaiton);
+			if (r%2==0)System.out.println();
+			
+			// if the var is an indel
+			if ((vd.isInsert || vd.isDeletion) && (r%2==1) ){
 
+				inDelPrecedes=true;
+				preIndelPos=vd.pos;
+				nbOfInDelsPosRemaining=Math.abs(vd.ref.length()-vd.alt.length());
+				System.out.print(" INDEL at pos:"+vd.pos+" nbOfInDelsPosRemaining:"+nbOfInDelsPosRemaining);	
+				if(vd.isDeletion ){//alt is shorter than ref, therefore  prevVarConWeight is lost through the rest of the subgraph following this strain
+					//System.out.println(" (double)prevVarConWeight/totalPerPos)):"+((double)prevVarConWeight/totalPerPos)+" (1/contigPloidy):"+(1/contigPloidy)+" contigPloidy:"+contigPloidy);
+					
+					System.out.print(" DELETION -> remains in strain:"+( (((double)prevVarConWeight/totalPerPos)/(1.0/contigPloidy))));
+					estimatedPloidyRemaining=(int) Math.round(((double)prevVarConWeight/totalPerPos)/(1.0/contigPloidy));
+					System.out.print(" estPloidy Rem:"+estimatedPloidyRemaining);
+				}else if(vd.isInsert ){//ref is horter than alt, 
+					System.out.print(" INSERT -> remains in strain:"+( (((double)conectivityWeight/totalPerPos)/(1.0/contigPloidy))));
+					estimatedPloidyRemaining=(int) Math.round(((double)conectivityWeight/totalPerPos)/(1.0/contigPloidy));
+					System.out.print(" estPloidy Rem:"+estimatedPloidyRemaining);
+				}
+				
+				
+			}
+			
+			
+			
+			
+			if( conectivityWeight < upLimitVariation &&  conectivityWeight > downLimitVariaiton ){
+				System.out.println("    ISOLATED NODE "+vd.id);
+			}else if ( prevVarConWeight < upLimitVariation &&  prevVarConWeight > downLimitVariaiton ){
+				System.out.println("    III   ISOLATED NODE "+preVd.id);
+			} else if (r%2==1) System.out.println();
+			
+			
+			
 		}
+		
 	}
 }
