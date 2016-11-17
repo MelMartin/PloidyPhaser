@@ -10,9 +10,11 @@ public class VariationData {
 	
 	String ref="";//the ref in the corresponding vcf line
 	String alt=".";//the alt in the corresponding vcf line
+	
 	String sample="0/0";
 	boolean isInsert=false;
 	boolean isDeletion=false;
+	boolean isBlank=false;
 	int matrixIndex;
 
 
@@ -52,6 +54,14 @@ public class VariationData {
 			nvd.id+="-";//set id with insert identifier '-'
 			nvd.expSignature+="-";
 		}
+		return nvd;
+	}
+	
+	public VariationData makeBlankVarExpressionFromRef(VariationData vd) {
+		VariationData nvd=new VariationData(vd.name,vd.pos,vd.ref,vd.alt,vd.sample);
+		nvd.isBlank=true;
+		nvd.id=Integer.toString(pos)+"-";//set regular id with '-'
+		nvd.expSignature="-";
 		return nvd;
 	}
 	

@@ -39,6 +39,7 @@ public class VariationsConnectivityMatrix {
 	public void printMatrix(int limit){
 		for (int r=0;r<limit;r++){
 			for (int c=0;c<limit;c++){
+				System.out.println (" ReadList"+r+"/"+c+":");
 				getReadList( r, c).printReadList();
 			}
 		}

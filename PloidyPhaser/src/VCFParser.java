@@ -22,8 +22,14 @@ public class VCFParser {
 		vcfFile=vf; 
 		vcfVariantShortExtractor(vcfFile.getAbsolutePath());//extracts only the repeated variants in a short format: chromName, pos, ref, alt
 		varMan.constructVariantMatrix();
+		/*
+		System.out.println("varExpMatIndexes varExpMatIndexes/varID:");  
+		for (Integer matIndex: varMan.varExpMatIndexes.keySet()){
+            System.out.println(matIndex + " " +  varMan.varExpMatIndexes.get(matIndex));  
+		}
+		*/
 		varMan.fillVariantMatrix();
-		varMan.colourMatrix(2);//activate vcm.printMatrix(20); in varMan.fillVariantMatrix()
+		//varMan.colourMatrix(2);//activate vcm.printMatrix(20); in varMan.fillVariantMatrix()
 
 	}
 
@@ -100,7 +106,7 @@ public class VCFParser {
 				format=sc.next();
 				sc.next();//skip sample
 	
-				//buid the line that is going to be written
+				//build the line that is going to be written
 				if (!infoFields.get(0).substring(0, 2).equals("DP")) {// Special vcf line ("STRUCTURAL VARIATION" )
 
 					svLength = Integer.parseInt(infoFields.get(1).substring(6, infoFields.get(1).length())) ;
@@ -130,13 +136,11 @@ public class VCFParser {
 				ct++;		
 			}
 
-			varMan.printOutVariations("Short");
+			//varMan.printOutVariations("Short");
 
 			if (sc != null)
 				sc.close();
 			
-			//CreateVariationVertex();//creates the vertex that are going to be used to define the phasing Matrix 'varMat'
-
 		} catch (Exception e) {
 			System.out.println("error at ct:" + ct + " pos:" + pos+" current:  "+currentVariationData.outString());
 		}

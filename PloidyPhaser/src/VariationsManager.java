@@ -32,6 +32,9 @@ public class VariationsManager {
 	VariationsConnectivityMatrix vcm;//expressed variation connectivity matrix
 
 	HashMap<Integer,ArrayList> readIndexVariationsIds=new HashMap <Integer,ArrayList> ();
+	
+	//vars to register blanks variations
+	int maxBlankPos=0;//whenever an indel variation is detected, this records to the max position to consider for potential blank Variations '-' 
 
 	public VariationsManager(VCFParser vm){
 		this.vm=vm;
@@ -41,17 +44,30 @@ public class VariationsManager {
 
 
 	public void registerPossibleVariationExpressions(VariationData vd){//for each variation position, two possible expressions are registered (Ref and alt)
-
+		//register reference
 		vd.setVarExpMatrixIndex(varExpMatIndexesSize++);
 		varExpMatIndexes.put(vd.matrixIndex,vd.id);//stores reference	allele	
 		varExprIds.put(vd.id, vd);
-		//System.out.println(vd.id+"\t/"+vd.matrixIndex);
-
+		
+		//register alternative 
 		VariationData newVD=vd.makeAlternativeVarExpressionFromRef(vd);	
 		newVD.setVarExpMatrixIndex(varExpMatIndexesSize++);
 		varExpMatIndexes.put(newVD.matrixIndex,newVD.id);//stores alternative allele	
 		varExprIds.put(newVD.id, newVD);
-		//if(newVD.id.equals("457C"))System.out.println("!!!!!!!!!!!!    457C REGISTRATION "+newVD.id+"\t/"+newVD.matrixIndex+" "+newVD.ref+" varExprIds.get:"+varExprIds.get(newVD.id).ref);
+		
+		//register InDel if required
+		if(vd.pos<=maxBlankPos){
+			VariationData blankVD=vd.makeBlankVarExpressionFromRef(vd);	
+			blankVD.setVarExpMatrixIndex(varExpMatIndexesSize++);
+			varExpMatIndexes.put(blankVD.matrixIndex,blankVD.id);//stores alternative allele	
+			varExprIds.put(blankVD.id, blankVD);
+			//System.out.println("-- BLANK POS at "+vd.pos+"-   REF:"+vd.ref+" ALT:"+vd.alt+" id:"+blankVD.id+" matrixIndex:"+blankVD.matrixIndex);
+		}
+
+		//update maxBlank Position if required
+		if(vd.isDeletion || vd.isInsert){
+			maxBlankPos=vd.pos+Math.abs(vd.ref.length()-vd.alt.length());//the number of blanks is given by: Math.abs(vd.ref.length()-vd.alt.length())
+		}
 	}
 
 
@@ -64,13 +80,14 @@ public class VariationsManager {
 		}	
 
 		iterateSamFile(variationsPos);	
-		//vcm.printMatrix(20);
+		vcm.printMatrix(12);
 
 	}
 
 	private void iterateSamFile(int[] variationsPos) {
 		SAMFileReader inputSam;
-		int lastVarPos =variationsPos[variationsPos.length-1];System.out.print("lastVarPos:"+lastVarPos);
+		int lastVarPos =variationsPos[variationsPos.length-1];//to avoid error while iterating   System.out.print("lastVarPos:"+lastVarPos);
+		
 
 		for (int bi=0;bi<PloidyPhaser.bamPaths.size();bi++){//for each bam file
 			inputSam = new SAMFileReader(PloidyPhaser.bamPaths.get(bi));		
@@ -82,11 +99,11 @@ public class VariationsManager {
 			int alEnd;
 			String libraryName="."+PloidyPhaser.bamPaths.get(bi).getName().substring(0,PloidyPhaser.bamPaths.get(bi).getName().lastIndexOf('.'));
 			String readName="";
-			int vpInd=0;//index pointing to the variationPos vector where the read maps its first variation
+			int vpInd=0;//index pointing to the variationPos vector where the read maps its first variation (reads are sorted!)
 			int currentVpInd=0;//index of the current variation
-			CigarCounter cigCount = null;
+			CigarCounter cigCount = null;//cigar Manager to reverse the alignment
 
-			ArrayList<String> tempDetectedVariationsIds=new ArrayList<String>();
+			ArrayList<String> tempDetectedVariationsIds=new ArrayList<String>();//list of temporary (before correction) detected varitions IDs in current read
 			int readIndex=0;//ERASE when FINISHED; For debug only
 
 			while (iter.hasNext() /*&& ct<1500 */ ) {//iterates the sam file (for each read)
@@ -95,7 +112,7 @@ public class VariationsManager {
 				alStart = rec.getAlignmentStart();
 				alEnd = rec.getReadLength()+alStart;
 
-				//identify  variation signatures of the read
+				//identify  expressed variation signatures (IDs) of the current read
 				if (alStart<lastVarPos /*&& ct<1500 */){	//alStart<lastVarPos avoids any reads that doesn't starts before the last Variation position
 					tempDetectedVariationsIds=new ArrayList<String>();
 
@@ -116,7 +133,7 @@ public class VariationsManager {
 						//if (alStart>760 && alEnd<950)System.out.println("bam:"+libraryName+" ct:"+ct+" ReadIndex:"+PloidyPhaser.readIndexes.get(readName) +" st:"+alStart+" end:"+alEnd+" length:"+rec.getReadLength()+" cig:"+rec.getCigar()+" readSeq:"+rec.getReadString()+" variationsPos["+currentVpInd+"]:"+variationsPos[currentVpInd]);
 
 
-						cigCount=new CigarCounter(rec.getCigar(),rec.getReadString(),readIndex);//new cigarCount for each read Sequence rec.getReadString()
+						cigCount=new CigarCounter(rec.getCigar(),rec.getReadString(),readIndex);//new cigarCount for each read Sequence rec.getReadString(); CigarCout contains a version of the read reversed aligned to the reference
 						boolean endReached=false;
 						//while the read spans positions with a variation
 						while(!endReached   && alEnd>variationsPos[currentVpInd]  ){
@@ -143,7 +160,7 @@ public class VariationsManager {
 
 
 					}
-					//System.out.println(" end");
+	
 				}else break;//alStart > lastVarPos
 				tempDetectedVariationsIds=checkDetectedVariations(tempDetectedVariationsIds,cigCount);
 				//add this paired end variations to the readIndex variations (joint both paired end's variations in a single hashmap)
@@ -185,8 +202,7 @@ public class VariationsManager {
 						//if (row==col)System.out.println	((dvr+dvc)+" dvr:"+dvr+" dvc:"+dvc+" readIndex:"+readIndex+" r==c ACCIDENT at row "+variationIDs.get(dvr)+" and column :"+variationIDs.get(dvc)+" r:"+row+" col:"+col+" variationIDs:"+variationIDs);
 
 					}catch (Exception e){
-						//if(!variationIDs.get(dvr).equals("855A-") && !variationIDs.get(dvc).equals("855A-"))	
-							System.err.println(" Variation error at row "+variationIDs.get(dvr)+" and column :"+variationIDs.get(dvc)+" r:"+row+" col:"+col+" variationIDs:"+variationIDs);
+							//System.err.println(" Variation error at row "+variationIDs.get(dvr)+" and column :"+variationIDs.get(dvc)+" r:"+row+" col:"+col+" variationIDs:"+variationIDs);
 					}
 				}
 			}
@@ -232,7 +248,6 @@ public class VariationsManager {
 
 			if(varExprIds.get(idTempCheckVar)==null){//we are interested in correcting variations if they have an error signature
 
-				
 				//System.out.print ("*******NEXT THAT NEEDS CHECK:  "+idTempCheckVar );
 				PairPosSignature pps=getPairPosSignature(idTempCheckVar);//split pos from expressed variation part of the id
 				pos=pps.pos;//position of var
@@ -275,7 +290,7 @@ public class VariationsManager {
 
 							if (varExprIds.containsKey(candSig)){
 								correctedSig[esp]=varExprIds.get(candSig).ref.charAt(0);
-								//System.out.print ("    CORRECTING "+idTempCheckVar+" at pos "+ esp+ " with  "+correctedSig[esp]); 
+								//System.out.println ("    CORRECTING "+idTempCheckVar+" at pos "+ esp+ " with  "+correctedSig[esp]); 
 							}else{//the VariationCombo is not registered in the vcf file (probably a sequencng and/or alignment error)
 								//System.out.println ("     BREAK LOOP for "+candSig+ "variation not registered in vcf file");
 
@@ -292,8 +307,6 @@ public class VariationsManager {
 						tempVarsToRemoveIndexes[tempVarsToRemove++]=d;
 						//System.out.println("###### CORRECTED Sig:"+correctedString+ " not found in varExprIds");
 					}
-
-
 				}
 
 				//System.out.println (" ****************************" );
@@ -337,8 +350,9 @@ public class VariationsManager {
 
 		if(subSeqEnd<=readLength  && cigCount.isValidRead){	
 			subSeq=cigCount.getSubseq(subSeqBeg, subSeqEnd, curVar);//get the aligned read subsequence corresponding to the pertinent positions
+
 			/*
-			if(curVar.pos==855){
+			if(curVar.pos==17){
 				System.out.println( "   CurrVar:"+curVar.outString()+" GETSUBSEQ "+"("+subSeqBeg+"/"+subSeqEnd+"):"+subSeq+ " readSeq:"+readSeq + " cigar:"+cigCount.cigar);
 			}
 			*/
@@ -683,8 +697,8 @@ public class VariationsManager {
 					conectivityWeight+=vcm.getReadList(rr, c).size();
 				}
 			}
-			System.out.print(conectivityWeight);
-			
+			System.out.println(conectivityWeight);
+			/*
 			if (r%2==1){//if it is the alternative expresion of the variation
 				totalPerPos+=conectivityWeight;
 			}else {//it is the first expression of the variation (REference)
@@ -739,22 +753,17 @@ public class VariationsManager {
 					estimatedPloidyRemaining=(int) Math.round(((double)conectivityWeight/totalPerPos)/(1.0/contigPloidy));
 					System.out.print(" estPloidy Rem:"+estimatedPloidyRemaining);
 				}
-				
-				
 			}
 			
-			
-			
-			
+
 			if( conectivityWeight < upLimitVariation &&  conectivityWeight > downLimitVariaiton ){
 				System.out.println("    ISOLATED NODE "+vd.id);
 			}else if ( prevVarConWeight < upLimitVariation &&  prevVarConWeight > downLimitVariaiton ){
 				System.out.println("    III   ISOLATED NODE "+preVd.id);
 			} else if (r%2==1) System.out.println();
-			
-			
-			
+	*/
 		}
-		
 	}
+	
+	
 }
