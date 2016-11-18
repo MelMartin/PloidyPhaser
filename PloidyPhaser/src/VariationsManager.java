@@ -80,7 +80,7 @@ public class VariationsManager {
 		}	
 
 		iterateSamFile(variationsPos);	
-		vcm.printMatrix(12);
+		//vcm.printMatrix(12);
 
 	}
 
@@ -280,12 +280,12 @@ public class VariationsManager {
 						int tp=pos+esp;// target position (starting at 0 )
 						String qID=expSignature.substring(esp,esp+1);//candidate char in query signature
 						String candSig=(tp+qID);//candidate signature
-						int indOfCandVariation;//index of Candidate Variation in tempDetectedVariaton
+						//int indOfCandVariation;//index of Candidate Variation in tempDetectedVariaton
 
 						//if the candidate exists for this subposition
 						if(tempDetectedVariationsIds.contains(candSig) ){
 							//check the expression of the candiate subposition
-							indOfCandVariation=tempDetectedVariationsIds.indexOf(candSig);//gets its index							
+							//indOfCandVariation=tempDetectedVariationsIds.indexOf(candSig);//gets its index							
 							//System.out.println ("   CANDIDATE COMBO-VAR candSig :" +candSig+/*": isAVariationComb?:"+isAVariationCombo+*/" at ind "+indOfCandVariation );
 
 							if (varExprIds.containsKey(candSig)){
@@ -391,11 +391,11 @@ public class VariationsManager {
 		boolean hasInsert=false;
 		int addedBases=0;//keeps track of inserted bases to a getSubseq() request
 		int nextUpIndex=0;//keeps track of upper bound index of sequence to getSubseq() request
-		Cigar cigar;
+		//Cigar cigar;
 
 
 		public CigarCounter(Cigar cigar,String readSeq,int readIndex){
-			this.cigar=cigar;
+			//this.cigar=cigar;
 			original =readSeq;
 			cigarElems=cigar.getCigarElements();
 			//check if the sequence needs to be altered (an all match cigar is going to have the same sequence before and after this class treatment)
@@ -508,9 +508,7 @@ public class VariationsManager {
 
 		private String getSubseq(int beg,int end, VariationData curVar){
 			String subSeq="";
-			
-			
-			boolean cigarHasMatchAtPos=false;
+		
 			//determine if the cigar has an insert at the position of the begining of this subseq
 			if (curVar.isInsert  && (getCigarOperatorAtPos(beg+2)==CigarOperator.M  || getCigarOperatorAtPos(beg+2)==CigarOperator.EQ) ){//the variation concerns an insert but the position is a match
 				if (!isAllM ){//complex cigar
@@ -605,7 +603,7 @@ public class VariationsManager {
 
 
 	public  void constructVariantMatrix() {
-		vcm= new VariationsConnectivityMatrix(varExpMatIndexes.size());
+		vcm= new VariationsConnectivityMatrix(this,varExpMatIndexes.size());
 
 	}
 
@@ -664,49 +662,11 @@ public class VariationsManager {
 		System.out.println("colourMatrix ("+minReadsThreshold+")");
 
 		//find Seed Nodes
-		
+		vcm.findSeedNodes(minReadsThreshold);
 		//variables
-		int conectivityWeight;//number of Reads that are connected to that node (through al connections)
-		int prevVarConWeight=0;//keeps track of the number of reads (coneectivity weight) in the previous Variation
-		VariationData vd=varExprIds.get(varExpMatIndexes.get(0));//current Variation (Node) being examined
-		VariationData preVd=vd;//keeps track of the previous Variation
-		int totalPerPos=0;//sum of nb or reads per Variation expressions (2 per variation) .		
-		int contigPloidy=(int) PloidyPhaser.ploidies.get(vd.name);//get the contig ploidy from first vcf call
 		
-		//variables for dealing with indels positions
-		boolean inDelPrecedes=false;
-		int nbOfInDelsPosRemaining=0;
-		int preIndelPos=0;//keeps track of the Variation Position that contains the indel
-		int estimatedPloidyRemaining=contigPloidy;
-		//count number of conexions per variation
-		for (int r=0;r<vcm.matSize;r++){//for all variations (per row)
-			conectivityWeight=0;
-			int c;//column number
-			vd=varExprIds.get(varExpMatIndexes.get(r));
-			System.out.print(" "+vd.pos+"/"+vd.expSignature+": ");
-
-			for ( c=0;c<r;c++){//with the fixed row, move through the columns until r=c
-				if(vcm.getReadList(r, c).size()>minReadsThreshold) {
-					conectivityWeight+=vcm.getReadList(r, c).size();
-					//System.out.print(" "+r+"/"+c+":"+vcm.getReadList(r, c).size());
-				}
-			}
-			c=r;//now we fix the column and move through the rest of the rows 
-			for (int rr=c;rr<vcm.matSize;rr++){
-				if(vcm.getReadList(rr, c).size()>minReadsThreshold) {
-					conectivityWeight+=vcm.getReadList(rr, c).size();
-				}
-			}
-			System.out.println(conectivityWeight);
 			/*
-			if (r%2==1){//if it is the alternative expresion of the variation
-				totalPerPos+=conectivityWeight;
-			}else {//it is the first expression of the variation (REference)
-				totalPerPos=conectivityWeight;
-				preVd=vd;
-				prevVarConWeight=conectivityWeight;
-			}
-			System.out.print(" tot:"+totalPerPos);
+		
 			
 			
 			//variables to estimate if a node is crossed by an isolated colour or it's a mix of diffferent haplotypes
@@ -735,35 +695,20 @@ public class VariationsManager {
 			System.out.print(" IsolatedNodeRatio:"+expectedIsolatedNodeRatio+ " up:"+upLimitVariation+" down:"+downLimitVariaiton);
 			if (r%2==0)System.out.println();
 			
-			// if the var is an indel
-			if ((vd.isInsert || vd.isDeletion) && (r%2==1) ){
-
-				inDelPrecedes=true;
-				preIndelPos=vd.pos;
-				nbOfInDelsPosRemaining=Math.abs(vd.ref.length()-vd.alt.length());
-				System.out.print(" INDEL at pos:"+vd.pos+" nbOfInDelsPosRemaining:"+nbOfInDelsPosRemaining);	
-				if(vd.isDeletion ){//alt is shorter than ref, therefore  prevVarConWeight is lost through the rest of the subgraph following this strain
-					//System.out.println(" (double)prevVarConWeight/totalPerPos)):"+((double)prevVarConWeight/totalPerPos)+" (1/contigPloidy):"+(1/contigPloidy)+" contigPloidy:"+contigPloidy);
-					
-					System.out.print(" DELETION -> remains in strain:"+( (((double)prevVarConWeight/totalPerPos)/(1.0/contigPloidy))));
-					estimatedPloidyRemaining=(int) Math.round(((double)prevVarConWeight/totalPerPos)/(1.0/contigPloidy));
-					System.out.print(" estPloidy Rem:"+estimatedPloidyRemaining);
-				}else if(vd.isInsert ){//ref is horter than alt, 
-					System.out.print(" INSERT -> remains in strain:"+( (((double)conectivityWeight/totalPerPos)/(1.0/contigPloidy))));
-					estimatedPloidyRemaining=(int) Math.round(((double)conectivityWeight/totalPerPos)/(1.0/contigPloidy));
-					System.out.print(" estPloidy Rem:"+estimatedPloidyRemaining);
-				}
-			}
-			
 
 			if( conectivityWeight < upLimitVariation &&  conectivityWeight > downLimitVariaiton ){
 				System.out.println("    ISOLATED NODE "+vd.id);
 			}else if ( prevVarConWeight < upLimitVariation &&  prevVarConWeight > downLimitVariaiton ){
 				System.out.println("    III   ISOLATED NODE "+preVd.id);
 			} else if (r%2==1) System.out.println();
-	*/
-		}
+	
+		}*/
 	}
+
+
+
+
+	
 	
 	
 }
