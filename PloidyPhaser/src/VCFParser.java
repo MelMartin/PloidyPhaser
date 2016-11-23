@@ -29,8 +29,9 @@ public class VCFParser {
 		}
 		*/
 		varMan.fillVariantMatrix();
-		varMan.colourMatrix(2);//activate vcm.printMatrix(20); in varMan.fillVariantMatrix()
-		System.err.println(" ERROR ADDING 4 LINES instead of 2+2 :\n"+" 480/C: w:2207 d:37\n 480/A: w:800 d:21\n 480/CCACTT: w:1892 d:34\n 480/C-: w:919 d:24 totW:5818 totD:116 nbOfVarsPerPos:4");
+		
+		//varMan.colourMatrix(2);//activate vcm.printMatrix(20); in varMan.fillVariantMatrix()
+		//System.err.println(" ERROR ADDING 4 LINES instead of 2+2 :\n"+" 480/C: w:2207 d:37\n 480/A: w:800 d:21\n 480/CCACTT: w:1892 d:34\n 480/C-: w:919 d:24 totW:5818 totD:116 nbOfVarsPerPos:4");
 
 	}
 

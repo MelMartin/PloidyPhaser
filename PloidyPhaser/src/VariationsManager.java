@@ -30,9 +30,12 @@ public class VariationsManager {
 	//the corresponding (possible)_variation_expresion VariationData (which contains a matIndex field)
 	List<VariationData> vcfVarLines = new ArrayList<VariationData>();//list of variations Positions where 'ref' different than 'alt'
 	VariationsConnectivityMatrix vcm;//expressed variation connectivity matrix
+	HashMap<Integer,ArrayList> readIndexVariationsIds=new HashMap <Integer,ArrayList> ();//maps all variations found on both paired ends of a read to the read index
 
-	HashMap<Integer,ArrayList> readIndexVariationsIds=new HashMap <Integer,ArrayList> ();
+	HashMap<String,ArrayList> varReadsHashMap=new HashMap<String,ArrayList> ();//maps each varId to the list of reads that express them
 	
+	int[] variationsPos;//the positions of the variations, sorted ascending
+
 	//vars to register blanks variations
 	int maxBlankPos=0;//whenever an indel variation is detected, this records to the max position to consider for potential blank Variations '-' 
 
@@ -48,19 +51,23 @@ public class VariationsManager {
 		vd.setVarExpMatrixIndex(varExpMatIndexesSize++);
 		varExpMatIndexes.put(vd.matrixIndex,vd.id);//stores reference	allele	
 		varExprIds.put(vd.id, vd);
+		varReadsHashMap.put(vd.id, new ArrayList<Integer>());
 		
 		//register alternative 
 		VariationData newVD=vd.makeAlternativeVarExpressionFromRef(vd);	
 		newVD.setVarExpMatrixIndex(varExpMatIndexesSize++);
 		varExpMatIndexes.put(newVD.matrixIndex,newVD.id);//stores alternative allele	
 		varExprIds.put(newVD.id, newVD);
-		
+		varReadsHashMap.put(newVD.id, new ArrayList<Integer>());
+
 		//register InDel if required
 		if(vd.pos<=maxBlankPos){
 			VariationData blankVD=vd.makeBlankVarExpressionFromRef(vd);	
 			blankVD.setVarExpMatrixIndex(varExpMatIndexesSize++);
+			blankVD.nbVarExpressions=newVD.nbVarExpressions=vd.nbVarExpressions=3;
 			varExpMatIndexes.put(blankVD.matrixIndex,blankVD.id);//stores alternative allele	
 			varExprIds.put(blankVD.id, blankVD);
+			varReadsHashMap.put(blankVD.id, new ArrayList<Integer>());
 			//System.out.println("-- BLANK POS at "+vd.pos+"-   REF:"+vd.ref+" ALT:"+vd.alt+" id:"+blankVD.id+" matrixIndex:"+blankVD.matrixIndex);
 		}
 
@@ -68,26 +75,39 @@ public class VariationsManager {
 		if(vd.isDeletion || vd.isInsert){
 			maxBlankPos=vd.pos+Math.abs(vd.ref.length()-vd.alt.length());//the number of blanks is given by: Math.abs(vd.ref.length()-vd.alt.length())
 		}
+		
+
 	}
 
 
 	public void fillVariantMatrix() {
 
 		//fill VariationsPos vector (vector containing all variations positions -kept vcf lines- ordered in a vector)
-		int[] variationsPos=new int[vcfVarLines.size()];
+		variationsPos=new int[vcfVarLines.size()];
 		for (int v=0;v<vcfVarLines.size();v++){
 			variationsPos[v]=vcfVarLines.get(v).pos;
 		}	
 
+		
 		iterateSamFile(variationsPos);	
-		//vcm.printMatrix(12);
+		   //vcm.printMatrix(12);
+		   //printNbReads();
+
+		findSeedNodesByRelativeConnectivity(20);
+		    //printVariationReads(12);
+
 
 	}
+
+	
+
+
+
 
 	private void iterateSamFile(int[] variationsPos) {
 		SAMFileReader inputSam;
 		int lastVarPos =variationsPos[variationsPos.length-1];//to avoid error while iterating   System.out.print("lastVarPos:"+lastVarPos);
-		
+
 
 		for (int bi=0;bi<PloidyPhaser.bamPaths.size();bi++){//for each bam file
 			inputSam = new SAMFileReader(PloidyPhaser.bamPaths.get(bi));		
@@ -160,13 +180,15 @@ public class VariationsManager {
 
 
 					}
-	
+
 				}else break;//alStart > lastVarPos
+
+				//REGISTER THE DETECTED VARIATIONS in readIndexVariationsIds
 				tempDetectedVariationsIds=checkDetectedVariations(tempDetectedVariationsIds,cigCount);
 				//add this paired end variations to the readIndex variations (joint both paired end's variations in a single hashmap)
 				if(readIndexVariationsIds.containsKey(readIndex) && readIndex!=0){//if the first paired end of the read has been registered. (readIndex=0 when there is a readIndex error)		
 					for (int ndv=0;ndv<tempDetectedVariationsIds.size();ndv++){//add the variations from the second paired end of the read
-						if (!readIndexVariationsIds.get(readIndex).contains(tempDetectedVariationsIds.get(ndv)))(readIndexVariationsIds.get(readIndex)).add(tempDetectedVariationsIds.get(ndv));//avoids repeats in overlaps paired ends 
+						if (!readIndexVariationsIds.get(readIndex).contains(tempDetectedVariationsIds.get(ndv)))(readIndexVariationsIds.get(readIndex)).add(tempDetectedVariationsIds.get(ndv));//avoids repeats in overlaped paired ends 
 					}
 					//if (readIndex==437 || readIndex==438  || readIndex==459  || readIndex==463  )System.out.println(" read :"+readIndex+" final vars:"+readIndexVariationsIds.get(readIndex));
 
@@ -177,7 +199,26 @@ public class VariationsManager {
 				}
 
 
+				//REGISTER THE DETECTED VARIATIONS in varReadsHashMap. Groups reads by variation
+				//add to the corresponding variations, the readIndex that express them
+				if (readIndex!=0 ){//checks the read is valid
+					for (int ndv=0;ndv<tempDetectedVariationsIds.size();ndv++){//add the variations from the second paired end of the read
+						String variation=tempDetectedVariationsIds.get(ndv);
+						try{
+
+							varReadsHashMap.get(variation).add( readIndex);	//register readIndex
+
+						}catch (Exception e){
+							System.err.println("Error registering into varReadsHashMap: variation: "+variation+"   read Index:" +readIndex);
+						}
+
+
+					}
+				}
+
 				ct++;
+
+
 			}
 			iter.close();
 			inputSam.close();
@@ -202,7 +243,7 @@ public class VariationsManager {
 						//if (row==col)System.out.println	((dvr+dvc)+" dvr:"+dvr+" dvc:"+dvc+" readIndex:"+readIndex+" r==c ACCIDENT at row "+variationIDs.get(dvr)+" and column :"+variationIDs.get(dvc)+" r:"+row+" col:"+col+" variationIDs:"+variationIDs);
 
 					}catch (Exception e){
-							//System.err.println(" Variation error at row "+variationIDs.get(dvr)+" and column :"+variationIDs.get(dvc)+" r:"+row+" col:"+col+" variationIDs:"+variationIDs);
+						//System.err.println(" Variation error at row "+variationIDs.get(dvr)+" and column :"+variationIDs.get(dvc)+" r:"+row+" col:"+col+" variationIDs:"+variationIDs);
 					}
 				}
 			}
@@ -256,20 +297,20 @@ public class VariationsManager {
 				//System.out.println (" **  id: "+idTempCheckVar+ " * :"+pos+"| |"+expSignature+": ***** ");
 
 
-				if(expSignature.substring(0,1).equals("-")){//the pos is not covered by the alignment (an expressed deletion covers this position)-> remove it
+				if(expSignature.length()>0 && expSignature.substring(0,1).equals("-")){//the pos is not covered by the alignment (an expressed deletion covers this position)-> remove it
 					//System.out.println (idTempCheckVar+"  removed BECAUSE OF '-' " );
 					tempVarsToRemoveIndexes[tempVarsToRemove++]=d;
 				}else  if(expSignature.length()>2 && expSignature.substring(1,2).equals("-") ){ //remove extra '-'
-				
+
 					//System.out.println (idTempCheckVar+"  (EXTRA -s)   Var Removed and replaced by "+pos+expSignature.substring(0,2) );
 
 					tempVarsToRemoveIndexes[tempVarsToRemove++]=d;
 					correctedVariationsIds.add(pos+expSignature.substring(0,2));
-	
+
 				} else { 
 					//System.out.print ("   CHECKING COMBO-VARs FOR :" +idTempCheckVar);
 					//TO DO : THIS PORTION SHOULD BE RECURSIVE FOR MORE RIGOUR (in long variations, there could also exist a sub position that needs to be corrected)
-					
+
 					//either is a combination of variations which signature can be corrected, or it is an error to dismiss
 
 					//boolean isAVariationCombo=false;
@@ -355,7 +396,7 @@ public class VariationsManager {
 			if(curVar.pos==17){
 				System.out.println( "   CurrVar:"+curVar.outString()+" GETSUBSEQ "+"("+subSeqBeg+"/"+subSeqEnd+"):"+subSeq+ " readSeq:"+readSeq + " cigar:"+cigCount.cigar);
 			}
-			*/
+			 */
 
 		}
 		//System.out.println(" DETECTED "+"("+subSeqBeg+"/"+subSeqEnd+"):"+subSeq);
@@ -429,7 +470,7 @@ public class VariationsManager {
 					System.out.println( );
 				}
 				 */
-				
+
 			}
 
 		}
@@ -508,11 +549,11 @@ public class VariationsManager {
 
 		private String getSubseq(int beg,int end, VariationData curVar){
 			String subSeq="";
-		
+
 			//determine if the cigar has an insert at the position of the begining of this subseq
 			if (curVar.isInsert  && (getCigarOperatorAtPos(beg+2)==CigarOperator.M  || getCigarOperatorAtPos(beg+2)==CigarOperator.EQ) ){//the variation concerns an insert but the position is a match
 				if (!isAllM ){//complex cigar
-				return alignedSeq[beg]+"-";
+					return alignedSeq[beg]+"-";
 				}else {//all Ms
 					return original.substring(beg,beg+1)+"-";
 				}
@@ -566,16 +607,17 @@ public class VariationsManager {
 						}
 					}
 				}else {//cigar is all M's
-						 subSeq= original.substring(beg,end);//the cigar is all Matches
+					subSeq= original.substring(beg,end);//the cigar is all Matches
 				}
 			}catch (Exception e){
-				System.err.print("Error in VariationsManager getSubseq("+ beg+", "+end+")" +" read sequence:"+original+" cigar:");
+				/*System.err.print("Error in VariationsManager curVar:"+curVar.id+" getSubseq("+ beg+", "+end+")" +" read sequence:"+original+" cigar:");
 				for (int ce=0;ce<cigarElems.size();ce++){					
 					currentOp=cigarElems.get(ce).getOperator();
 					basesLeft=cigarElems.get(ce).getLength();
-					System.err.print( currentOp+" "+basesLeft+ " ");
+					//System.err.print( currentOp+" "+basesLeft+ " ");
 				}
 				System.err.println();
+				 */
 			}
 			return subSeq;
 		}
@@ -595,11 +637,11 @@ public class VariationsManager {
 			}
 			return cigarElems.get(cigarElems.size()).getOperator();
 		}
-		
-		
+
+
 	}
-	
-	
+
+
 
 
 	public  void constructVariantMatrix() {
@@ -664,19 +706,19 @@ public class VariationsManager {
 		//find Seed Nodes
 		vcm.findSeedNodes(minReadsThreshold);
 		//variables
-		
-			/*
-		
-			
-			
+
+		/*
+
+
+
 			//variables to estimate if a node is crossed by an isolated colour or it's a mix of diffferent haplotypes
 			int expectedIsolatedNodeRatio=0;;//Theoretical ratio of totalNbOfReads/k , which correspond to an isolated colour in the connectivity graph
 			int upLimitVariation=0;
 			int downLimitVariaiton=0;
-			
+
 			//the expectedIsolatedNodeRatio, upLimit and downLimit are computed differently if the position is precedeed by an indel variation or not
 			if(inDelPrecedes  ){//estimation preceeded by indel
-				
+
 				if(((vd.pos-preIndelPos)>nbOfInDelsPosRemaining)){
 					System.out.print("nbOfInDelsPosRemaining:"+nbOfInDelsPosRemaining+" - "+(vd.pos-preIndelPos)+" = ");
 					nbOfInDelsPosRemaining-=(vd.pos-preIndelPos);
@@ -685,30 +727,206 @@ public class VariationsManager {
 					upLimitVariation=expectedIsolatedNodeRatio+(expectedIsolatedNodeRatio/5);
 					downLimitVariaiton=expectedIsolatedNodeRatio-(expectedIsolatedNodeRatio/2);
 				}else inDelPrecedes=false;
-				
+
 			}else{//normal estimation (not preceeeded by indel)
-				
+
 				expectedIsolatedNodeRatio= totalPerPos/contigPloidy;//Theoretical ratio of totalNbOfReads/k , which correspond to an isolated colour in the connectivity graph
 				upLimitVariation=expectedIsolatedNodeRatio+(expectedIsolatedNodeRatio/5);
 				downLimitVariaiton=expectedIsolatedNodeRatio-(expectedIsolatedNodeRatio/2);
 			}
 			System.out.print(" IsolatedNodeRatio:"+expectedIsolatedNodeRatio+ " up:"+upLimitVariation+" down:"+downLimitVariaiton);
 			if (r%2==0)System.out.println();
-			
+
 
 			if( conectivityWeight < upLimitVariation &&  conectivityWeight > downLimitVariaiton ){
 				System.out.println("    ISOLATED NODE "+vd.id);
 			}else if ( prevVarConWeight < upLimitVariation &&  prevVarConWeight > downLimitVariaiton ){
 				System.out.println("    III   ISOLATED NODE "+preVd.id);
 			} else if (r%2==1) System.out.println();
-	
+
 		}*/
+	}
+
+	
+	
+	private int[] fillNbVarExpressionsPerPos(int matSize){
+		ArrayList <Integer> nbVarExpressionsPerPosArray=new ArrayList <Integer>();//Nb of VarExpressions <value> Per Position (either 2 or 3 dependig or wether it contains a "-" or not) Sorted ascending
+		int[] nbVarExpressionsPerPos;//Nb of VarExpressions <value> Per Position (either 2 or 3 dependig or wether it contains a "-" or not) Sorted ascending
+		ArrayList <Integer> varPosArray=new ArrayList <Integer>();//holds a list of var positions per var expression (16A and 16C will give : 16 16)
+		
+		int currentPos;
+		int expressionsPerPos=0;
+		int r=0;
+		System.out.print("Positions             ---- ");
+		while (r<matSize){
+			currentPos=varExprIds.get(varExpMatIndexes.get(r)).pos;
+
+			VariationData rowVar=varExprIds.get(varExpMatIndexes.get(r));
+			varPosArray.add(currentPos);
+			System.out.print(currentPos+"\t");
+			expressionsPerPos=rowVar.nbVarExpressions;
+			r++;
+			nbVarExpressionsPerPosArray.add(expressionsPerPos);
+		}
+		System.out.println();
+		System.out.print("nbVarExpressionsPerPos --- ");
+		nbVarExpressionsPerPos=new int[nbVarExpressionsPerPosArray.size()];
+
+		for(int n=0;n<nbVarExpressionsPerPos.length;n++){
+			nbVarExpressionsPerPos[n]=nbVarExpressionsPerPosArray.get(n);
+			variationsPos[n]=varPosArray.get(n);
+			System.out.print(nbVarExpressionsPerPos[n]+"\t");
+		}
+		System.out.println();
+		System.out.print("MatIndex               --- ");
+		for(int n=0;n<nbVarExpressionsPerPos.length;n++){
+			System.out.print(n+"\t");
+		}
+		System.out.println();
+		return nbVarExpressionsPerPos;
+	}
+	
+	private void findSeedNodesByRelativeConnectivity(int matSize) {
+		
+		int[]nbVarExpressionsPerPos=fillNbVarExpressionsPerPos(matSize);// fills nbVarExpressionsPerPos arrayList
+
+		ArrayList <Integer> isolatedNodes=new ArrayList <Integer> ();
+
+		int NbVarExpressionsPerCurrentPos=0;	//Nb Variant Expressions at the current position
+		int r=0;
+		int firstR=r;
+		while (r<matSize){//for all variations (per row)
+				
+
+			VariationData rowVar=varExprIds.get(varExpMatIndexes.get(r));//the variation node being evaluated for seedNode (origin) 
+			VariationData colVar;//the variation to which the rowNode is potentially conected in the graph(potential destination)
+			
+			if(NbVarExpressionsPerCurrentPos==0){
+				NbVarExpressionsPerCurrentPos=rowVar.nbVarExpressions;//update the nb of possible var expressions for this position
+				System.out.println(" NEW POS:"+rowVar.pos+" ");
+				firstR=r;//to keep track of the first row of each var group ( the row that defines the first expression of each new variation)
+			}
+			
+			int rowPos=rowVar.pos;
+			int nbDestNodes;//nb of potential Variations in the next destination Position (2 or 3 depending on the dest Pos has a "-" potential expression or not)
+			
+			System.out.print(r+" rowVar:"+rowVar.id+" nbExpressions="+NbVarExpressionsPerCurrentPos+"  ");
+			int c=0;
+			//nveppInd=0;
+			while(c<firstR){//with the fixed row, move through the columns until r=c
+				nbDestNodes=nbVarExpressionsPerPos[c];
+				
+				System.out.print(nbVarExpressionsPerPos[c]+"["+c);
+				while (nbDestNodes>0){
+			
+					colVar=varExprIds.get(varExpMatIndexes.get(c));
+					
+					if(colVar.pos!=rowPos){
+						System.out.print(" "+colVar.id);
+					}else{
+						System.out.print(" "+c+"/"+r);
+						for (int k=0;k<colVar.expSignature.length();k++){
+							System.out.print("*");
+						}
+					}
+					c++;
+					nbDestNodes--;
+					
+				}
+				//nveppInd++;
+				System.out.print(" ]");
+			}
+			int rr=firstR;//now we fix the column and move through the rest of the rows 
+
+			while (rr<matSize){
+				nbDestNodes=nbVarExpressionsPerPos[rr];
+				System.out.print(nbVarExpressionsPerPos[rr]+"("+rr+" ");
+				while (nbDestNodes>0){
+					colVar=varExprIds.get(varExpMatIndexes.get(rr));
+					
+					if(colVar.pos!=rowPos ){//|| ((rr-r)>(nbVarExpressionsPerPos[rr]-1))
+						System.out.print(" "+colVar.id);
+					}else{
+						System.out.print(" "+c+"/"+rr);//+c+"/"+r
+						for (int k=0;k<colVar.expSignature.length();k++){
+							System.out.print(" ");
+						}
+					}
+					rr++;
+					nbDestNodes--;
+				}
+				//nveppInd++;
+				System.out.print(" )");
+			}
+			
+			System.out.println();
+			NbVarExpressionsPerCurrentPos--;
+			r++;
+		}
+		
+	}
+
+	public void printVariationReads(int i) {
+
+		Set<Map.Entry<Integer,String>> varEMids = varExpMatIndexes.entrySet();
+		
+		int lastPos=0;
+		int currentPos=0;
+		int nbDifVarPerPos=1;
+		int sum=0;
+
+		String varId=varExpMatIndexes.get(0);
+
+		VariationData curVar=varExprIds.get(varId);
+		currentPos=curVar.pos;
+		int varReadListSize=varReadsHashMap.get(varId).size();
+		System.out.println("   DIFF " +varId+" : "+varReadListSize+ " currentPos: "+currentPos+ " lastPos: "+lastPos+" exp: "+curVar.expSignature);
+		double expectedRatio=0;//expected ratio
+
+		for( Map.Entry<Integer,String>v : varEMids){
+
+			varId=v.getValue();
+			varReadListSize=varReadsHashMap.get(varId).size();
+			curVar=varExprIds.get(varId);
+			currentPos=curVar.pos;
+			if (currentPos==lastPos  ){
+				nbDifVarPerPos++;
+				sum+=varReadListSize;
+				expectedRatio=((double)sum/nbDifVarPerPos);
+				//System.out.println("   EQ " +varId+" : "+varReadListSize+ " currentPos: "+currentPos+ " lastPos: "+lastPos+" expr: "+curVar.expSignature);
+				//System.out.println("Ratio: sum"+sum+" nbDifVarPerPos: "+nbDifVarPerPos+" expectedRatio:"+expectedRatio);
+				System.out.println(expectedRatio);
+
+			}else	{
+				//System.out.println("   DIFF " +varId+" : "+varReadListSize+ " currentPos: "+currentPos+ " lastPos: "+lastPos+" expr: "+curVar.expSignature);
+				
+				sum=varReadListSize;
+				nbDifVarPerPos=1;
+				//System.out.println();
+			}
+
+			lastPos=currentPos;
+		
+			
+		}
+
+	}
+
+
+	public void printNbReads() {
+
+		Set<Map.Entry<Integer,String>> varEMids = varExpMatIndexes.entrySet();
+
+		for( Map.Entry<Integer,String>v : varEMids){
+			int varReadListSize=varReadsHashMap.get(v.getValue()).size();
+			System.out.println(v.getKey()+" "+varReadListSize);
+
+		}
+		System.out.println("----------");
 	}
 
 
 
 
-	
-	
-	
+
 }

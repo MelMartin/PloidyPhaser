@@ -77,12 +77,14 @@ public class PloidyPhaser {
 				}
 			});
 			//get bams
-			bamPaths.add(new File("C://Users//Mel//Documents//BIOINFORMATICS//DELFT_Research//ConPADE-master//Simulated_input_bams//sorted_200bp.bam"));
-			bamPaths.add(new File("C://Users//Mel//Documents//BIOINFORMATICS//DELFT_Research//ConPADE-master//Simulated_input_bams//sorted_500bp.bam"));
+			bamPaths.add(new File("C://Users//Mel//Documents//BIOINFORMATICS//DELFT_Research//ConPADE-master//Simulated_input_bams//sorted_NoClip_200bp.bam"));
+			bamPaths.add(new File("C://Users//Mel//Documents//BIOINFORMATICS//DELFT_Research//ConPADE-master//Simulated_input_bams//sorted_NoClip_500bp.bam"));
 			//getReadIndexes();
+
 			getChr1ReadIndexes();
+
 		} catch (Exception e) {
-			System.out.println("Error reading ploidy estimation file");
+			System.err.println("Error reading ploidy estimation file");
 			e.printStackTrace();
 
 		}
@@ -122,7 +124,7 @@ public class PloidyPhaser {
 		
 		
 		/*
-		PrintWriter writer = new PrintWriter("C://Users//Mel//Documents//BIOINFORMATICS//DELFT_Research//ConPADE-master//Simulated_input_bams//"+"chrom1ReadsIndexes.txt", "UTF-8");
+		PrintWriter writer = new PrintWriter("C://Users//Mel//Documents//BIOINFORMATICS//DELFT_Research//ConPADE-master//Simulated_input_bams//"+"chrom1_NoClip_ReadsIndexes.txt", "UTF-8");
 		
 		for (HashMap.Entry<String, Integer> entry : readIndexes.entrySet()) {
 			writer.println(entry.getKey() + "\t" + entry.getValue());
@@ -135,11 +137,14 @@ public class PloidyPhaser {
 	private static void getChr1ReadIndexes()  {
 
 		try {
-			Scanner sc = new Scanner(new File("C://Users//Mel//Documents//BIOINFORMATICS//DELFT_Research//ConPADE-master//Simulated_input_bams//chrom1ReadsIndexes.txt"));
-			
-			while (sc.hasNextLine()){
-				readIndexes.put(sc.next(), sc.nextInt());
+			//Scanner sc = new Scanner(new File("C://Users//Mel//Documents//BIOINFORMATICS//DELFT_Research//ConPADE-master//Simulated_input_bams//chrom1ReadsIndexes.txt"));
+			Scanner sc = new Scanner(new File("C://Users//Mel//Documents//BIOINFORMATICS//DELFT_Research//ConPADE-master//Simulated_input_bams//chrom1_NoClip_ReadsIndexes.txt"));
+			String s;
+			int i;
+			while (sc.hasNextLine() ){				
+				readIndexes.put(sc.next(), sc.nextInt());		 
 			}
+			 sc.close(); 
 		} catch (FileNotFoundException e) {
 			e.printStackTrace();
 		}

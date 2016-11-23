@@ -1,12 +1,18 @@
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 
 
 public class VariationsConnectivityMatrix {
 	ReadList[][]varExpMat;
+	//int [][]connectivityMatrix;
 	int matSize;
 	VariationsManager varMan;
+	//HashMap<String,ArrayList> varReadsHashMap=new HashMap<String,ArrayList> ();//maps each varId to the list of reads that express them
+	
 	
 	public VariationsConnectivityMatrix (VariationsManager vm,int d) {
 		varMan=vm;
@@ -28,6 +34,8 @@ public class VariationsConnectivityMatrix {
 		varExpMat[row][col].add(readIndex);
 	}
 	
+	
+
 
 	public void printMatrix(int limit){
 		for (int r=0;r<limit;r++){
@@ -59,10 +67,10 @@ public class VariationsConnectivityMatrix {
 		int estimatedPloidyRemaining=contigPloidy;
 		*/
 		
-		//count number of conexions per variation
+		//count number of conexions (degree) and number of reads that support a conection (weight)per variation
 		for (int r=0;r<matSize;r++){//for all variations (per row)
-			conectivityWeight=0;
-			connectivityDegree=0;
+			conectivityWeight=0;//nb of reads that connect on node to another
+			connectivityDegree=0;//nb of directly connected nodes
 			int c;//column number
 			vd=nextVd;
 			if(r<(matSize-1))nextVd=varMan.varExprIds.get(varMan.varExpMatIndexes.get(r+1));
@@ -113,12 +121,11 @@ public class VariationsConnectivityMatrix {
 			
 			
 		}
-		
-		
-		
-		
-		
 	}
+	
+	
+
+	
 	
 	
 	
@@ -126,7 +133,7 @@ public class VariationsConnectivityMatrix {
     	
     	List <Integer> ReadsIndexes;
     	
-    	private ReadList (){
+    	public ReadList (){
     		ReadsIndexes=new ArrayList<Integer>();
     	}
     	
@@ -142,11 +149,12 @@ public class VariationsConnectivityMatrix {
     		ReadsIndexes=new ArrayList<Integer>();
     	}
     	
-    	private boolean add(Integer readIndex){
+    	public boolean add(Integer readIndex){
     		return ReadsIndexes.add(readIndex);
     	}
     	
-    	private void printReadList(){
+    	public void printReadList(){
+    		ReadsIndexes.sort(null);
     		for (int i=0;i<ReadsIndexes.size();i++){
 				System.out.print (" "+ReadsIndexes.get(i));
 			}
@@ -154,5 +162,13 @@ public class VariationsConnectivityMatrix {
     	}
     	
     }
+
+
+
+
+
+
+
+
 	
 }

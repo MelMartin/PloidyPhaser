@@ -16,6 +16,7 @@ public class VariationData {
 	boolean isDeletion=false;
 	boolean isBlank=false;
 	int matrixIndex;
+	int nbVarExpressions=2;//nb of possible expressions for this variant (2 by default, 3 when "-" can happen)
 
 
 	public VariationData(){
