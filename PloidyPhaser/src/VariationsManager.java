@@ -93,7 +93,7 @@ public class VariationsManager {
 		   //vcm.printMatrix(12);
 		   //printNbReads();
 
-		findSeedNodesByRelativeConnectivity(20);
+		findSeedNodesByRelativeConnectivity(12);
 		    //printVariationReads(12);
 
 
@@ -793,10 +793,12 @@ public class VariationsManager {
 		ArrayList <Integer> isolatedNodes=new ArrayList <Integer> ();
 
 		int NbVarExpressionsPerCurrentPos=0;	//Nb Variant Expressions at the current position
-		int r=0;
-		int firstR=r;
+		int r=0;//row
+		int c=0;//column
+		int firstR=r;//first row of same Variation (2 or 3 potential expressions per var)
+		//int firstC=c;//first row of same Variation (2 or 3 potential expressions per var)
 		while (r<matSize){//for all variations (per row)
-				
+			double varSum=0;//connectivities relative sum for the current variation	
 
 			VariationData rowVar=varExprIds.get(varExpMatIndexes.get(r));//the variation node being evaluated for seedNode (origin) 
 			VariationData colVar;//the variation to which the rowNode is potentially conected in the graph(potential destination)
@@ -809,59 +811,80 @@ public class VariationsManager {
 			
 			int rowPos=rowVar.pos;
 			int nbDestNodes;//nb of potential Variations in the next destination Position (2 or 3 depending on the dest Pos has a "-" potential expression or not)
+			int limitC=r;
+			System.out.print(r+" rowVar:"+rowVar.id+" nbExpr="+NbVarExpressionsPerCurrentPos+" ");
+			c=0;
 			
-			System.out.print(r+" rowVar:"+rowVar.id+" nbExpressions="+NbVarExpressionsPerCurrentPos+"  ");
-			int c=0;
-			//nveppInd=0;
+			int nbPosCon=0;//nb of connections (target nodes for current target position) of query node RowVar
 			while(c<firstR){//with the fixed row, move through the columns until r=c
+				nbPosCon=0;//initialize nbPosCon for this target Position
 				nbDestNodes=nbVarExpressionsPerPos[c];
 				
-				System.out.print(nbVarExpressionsPerPos[c]+"["+c);
+				System.out.print("[");//nbVarExpressionsPerPos[c]+
+				
 				while (nbDestNodes>0){
 			
 					colVar=varExprIds.get(varExpMatIndexes.get(c));
 					
-					if(colVar.pos!=rowPos){
-						System.out.print(" "+colVar.id);
+					if(colVar.pos!=rowPos || ((firstR-c)>0)){// // the second condition is for variants that appear twice in the same position
+						
+						if(vcm.varExpMat[r][c].size()>1){
+							nbPosCon++;
+							//System.out.print(" "+colVar.id);
+							//System.out.print(" "+r+"\\"+c);
+						}
+
 					}else{
-						System.out.print(" "+c+"/"+r);
+						System.out.print(" ");//+firstR+"/"+c+"#"+nbVarExpressionsPerPos[firstR]
 						for (int k=0;k<colVar.expSignature.length();k++){
 							System.out.print("*");
 						}
+
 					}
 					c++;
 					nbDestNodes--;
 					
 				}
-				//nveppInd++;
-				System.out.print(" ]");
+				//System.out.print(" ]");
+				varSum+=(double)nbPosCon/nbVarExpressionsPerPos[(c-1)];
+				System.out.print(" "+(double)nbPosCon/nbVarExpressionsPerPos[(c-1)]+" ]");
 			}
 			int rr=firstR;//now we fix the column and move through the rest of the rows 
-
+			
 			while (rr<matSize){
+				nbPosCon=0;//nb of connections (target nodes for current target position) of query node RowVar
 				nbDestNodes=nbVarExpressionsPerPos[rr];
-				System.out.print(nbVarExpressionsPerPos[rr]+"("+rr+" ");
+				System.out.print( "(");//nbVarExpressionsPerPos[c]+
 				while (nbDestNodes>0){
 					colVar=varExprIds.get(varExpMatIndexes.get(rr));
 					
-					if(colVar.pos!=rowPos ){//|| ((rr-r)>(nbVarExpressionsPerPos[rr]-1))
-						System.out.print(" "+colVar.id);
-					}else{
-						System.out.print(" "+c+"/"+rr);//+c+"/"+r
+					if(colVar.pos!=rowPos || ((rr-c)>=(nbVarExpressionsPerPos[firstR]))){// the second condition is for variants that appear twice in the same position
+						//System.out.print(" "+limitC+"\\"+rr);
+						if(vcm.varExpMat[rr][limitC].size()>1){
+							nbPosCon++;
+							//System.out.print(" "+colVar.id);
+						}
+						
+					}else{//Do nothing here( Variant connecting with itself doesn't make sense)
+						System.out.print(" ");//+c+"/"+rr+"#"+nbVarExpressionsPerPos[firstR]
 						for (int k=0;k<colVar.expSignature.length();k++){
 							System.out.print(" ");
 						}
+						//System.out.print(((rr-c)>=(nbVarExpressionsPerPos[firstR])));
 					}
 					rr++;
 					nbDestNodes--;
 				}
-				//nveppInd++;
-				System.out.print(" )");
+				//System.out.print(" )");
+				varSum+=(double)nbPosCon/nbVarExpressionsPerPos[(rr-1)];
+				System.out.print(" "+(double)nbPosCon/nbVarExpressionsPerPos[(rr-1)]+" )");//nbVarExpressionsPerPos[]
 			}
 			
-			System.out.println();
+			System.out.println(" varSum:"+varSum);
+			
 			NbVarExpressionsPerCurrentPos--;
 			r++;
+		
 		}
 		
 	}
