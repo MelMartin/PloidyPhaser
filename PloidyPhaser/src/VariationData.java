@@ -17,7 +17,8 @@ public class VariationData {
 	boolean isBlank=false;
 	int matrixIndex;
 	int nbVarExpressions=2;//nb of possible expressions for this variant (2 by default, 3 when "-" can happen)
-
+	double weightedConnectivity;
+	int colour;
 
 	public VariationData(){
 		
@@ -56,6 +57,16 @@ public class VariationData {
 			nvd.expSignature+="-";
 		}
 		return nvd;
+	}
+	
+	//returns true if weightedConnectivity corresponds with the expected ratio of an isolated node 
+	public boolean setWeightedConnectivity(double wc, double expectedRatio, double ratioVariation,int nextColor){
+		weightedConnectivity=wc;
+		
+		if(wc>(expectedRatio-ratioVariation) &&  wc<(expectedRatio+ratioVariation)){
+			colour=nextColor;
+			return true;
+		}else return false;
 	}
 	
 	public VariationData makeBlankVarExpressionFromRef(VariationData vd) {

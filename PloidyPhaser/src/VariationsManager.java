@@ -1,17 +1,12 @@
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.PrintStream;
-import java.security.KeyStore.Entry;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-
 import net.sf.samtools.Cigar;
 import net.sf.samtools.CigarElement;
 import net.sf.samtools.CigarOperator;
@@ -22,7 +17,7 @@ import net.sf.samtools.SAMFileReader.ValidationStringency;
 
 public class VariationsManager {
 	List<Integer> tempReadIndexes = Arrays.asList( 269142, 269145, 269146, 269151, 269152, 269157, 269158, 269159, 269160); //ERASE after use. For debug only
-	VCFParser vm;
+	VCFParser vcfPar;
 	int varExpMatIndexesSize=0;
 	HashMap<Integer,String> varExpMatIndexes=new HashMap<Integer,String>();//keeps track of the (possible) variation expressions index in the 
 	//connectivity matrix (matIndex) <key> , and their id (VarId) <value>
@@ -31,16 +26,15 @@ public class VariationsManager {
 	List<VariationData> vcfVarLines = new ArrayList<VariationData>();//list of variations Positions where 'ref' different than 'alt'
 	VariationsConnectivityMatrix vcm;//expressed variation connectivity matrix
 	HashMap<Integer,ArrayList> readIndexVariationsIds=new HashMap <Integer,ArrayList> ();//maps all variations found on both paired ends of a read to the read index
-
 	HashMap<String,ArrayList> varReadsHashMap=new HashMap<String,ArrayList> ();//maps each varId to the list of reads that express them
-	
+
 	int[] variationsPos;//the positions of the variations, sorted ascending
 
 	//vars to register blanks variations
 	int maxBlankPos=0;//whenever an indel variation is detected, this records to the max position to consider for potential blank Variations '-' 
 
 	public VariationsManager(VCFParser vm){
-		this.vm=vm;
+		this.vcfPar=vm;
 	}
 
 
@@ -52,7 +46,7 @@ public class VariationsManager {
 		varExpMatIndexes.put(vd.matrixIndex,vd.id);//stores reference	allele	
 		varExprIds.put(vd.id, vd);
 		varReadsHashMap.put(vd.id, new ArrayList<Integer>());
-		
+
 		//register alternative 
 		VariationData newVD=vd.makeAlternativeVarExpressionFromRef(vd);	
 		newVD.setVarExpMatrixIndex(varExpMatIndexesSize++);
@@ -75,7 +69,7 @@ public class VariationsManager {
 		if(vd.isDeletion || vd.isInsert){
 			maxBlankPos=vd.pos+Math.abs(vd.ref.length()-vd.alt.length());//the number of blanks is given by: Math.abs(vd.ref.length()-vd.alt.length())
 		}
-		
+
 
 	}
 
@@ -88,25 +82,26 @@ public class VariationsManager {
 			variationsPos[v]=vcfVarLines.get(v).pos;
 		}	
 
-		
+
 		iterateSamFile(variationsPos);	
-		   //vcm.printMatrix(12);
-		   //printNbReads();
+		//vcm.printMatrix(12);
+		//printNbReads();
 
 		findSeedNodesByRelativeConnectivity(12);
-		    //printVariationReads(12);
+		//printVariationReads(12);
 
 
 	}
 
-	
+
 
 
 
 
 	private void iterateSamFile(int[] variationsPos) {
 		SAMFileReader inputSam;
-		int lastVarPos =variationsPos[variationsPos.length-1];//to avoid error while iterating   System.out.print("lastVarPos:"+lastVarPos);
+		int lastVarPos =variationsPos[variationsPos.length-1];//to avoid error while iterating   
+		
 
 
 		for (int bi=0;bi<PloidyPhaser.bamPaths.size();bi++){//for each bam file
@@ -651,18 +646,18 @@ public class VariationsManager {
 
 	public void printOutVariations(String apendix) throws FileNotFoundException {
 
-		System.out.println("outputCleanFile:"+vm.vcfFile.getParent()+"\\Clean\\"+vm.vcfFile.getName().substring(0, vm.vcfFile.getName().lastIndexOf('.'))+apendix+".vcf");
-		vm.outputCleanFile = vm.vcfFile.getParent()+"\\Clean\\"+vm.vcfFile.getName().substring(0, vm.vcfFile.getName().lastIndexOf('.'));
+		System.out.println("outputCleanFile:"+vcfPar.vcfFile.getParent()+"\\Clean\\"+vcfPar.vcfFile.getName().substring(0, vcfPar.vcfFile.getName().lastIndexOf('.'))+apendix+".vcf");
+		vcfPar.outputCleanFile = vcfPar.vcfFile.getParent()+"\\Clean\\"+vcfPar.vcfFile.getName().substring(0, vcfPar.vcfFile.getName().lastIndexOf('.'));
 
-		vm.outputCleanFile +=apendix+".vcf";
+		vcfPar.outputCleanFile +=apendix+".vcf";
 
 		PrintStream stdout = System.out;
 		PrintStream myConsole = null;
 
 		try {
-			myConsole = new PrintStream(new File(vm.outputCleanFile));
+			myConsole = new PrintStream(new File(vcfPar.outputCleanFile));
 			System.setOut(myConsole);
-			System.out.println(vm.header);
+			System.out.println(vcfPar.header);
 			for (int i = 0; i < (vcfVarLines.size()-1); i++) {
 				System.out.println(vcfVarLines.get(i).outString());
 			}
@@ -747,13 +742,13 @@ public class VariationsManager {
 		}*/
 	}
 
-	
-	
+
+
 	private int[] fillNbVarExpressionsPerPos(int matSize){
 		ArrayList <Integer> nbVarExpressionsPerPosArray=new ArrayList <Integer>();//Nb of VarExpressions <value> Per Position (either 2 or 3 dependig or wether it contains a "-" or not) Sorted ascending
 		int[] nbVarExpressionsPerPos;//Nb of VarExpressions <value> Per Position (either 2 or 3 dependig or wether it contains a "-" or not) Sorted ascending
 		ArrayList <Integer> varPosArray=new ArrayList <Integer>();//holds a list of var positions per var expression (16A and 16C will give : 16 16)
-		
+
 		int currentPos;
 		int expressionsPerPos=0;
 		int r=0;
@@ -785,49 +780,80 @@ public class VariationsManager {
 		System.out.println();
 		return nbVarExpressionsPerPos;
 	}
-	
+
 	private void findSeedNodesByRelativeConnectivity(int matSize) {
 		
+		double expectedRatio=1/vcfPar.ploidy;
+		double ratioVariation=expectedRatio/4;
+		int nextColour=0;
+		
 		int[]nbVarExpressionsPerPos=fillNbVarExpressionsPerPos(matSize);// fills nbVarExpressionsPerPos arrayList
-
-		ArrayList <Integer> isolatedNodes=new ArrayList <Integer> ();
+		ArrayList <VariationData> isolatedNodes=new ArrayList <VariationData> ();
 
 		int NbVarExpressionsPerCurrentPos=0;	//Nb Variant Expressions at the current position
 		int r=0;//row
 		int c=0;//column
 		int firstR=r;//first row of same Variation (2 or 3 potential expressions per var)
-		//int firstC=c;//first row of same Variation (2 or 3 potential expressions per var)
+		double[]varSumValues=new double[1];//holds the varSum values per query var
+		int varSumValuesIndex=0;
+		double posSum=0;//Sums of VarSum having the same position and Variation (2 or 3 depending on wether it has the "-" possibility). 
+		//If the position hav 2 Variants (1SNP and 1Indel for example) colVar is computed separtely for each
+
 		while (r<matSize){//for all variations (per row)
 			double varSum=0;//connectivities relative sum for the current variation	
 
 			VariationData rowVar=varExprIds.get(varExpMatIndexes.get(r));//the variation node being evaluated for seedNode (origin) 
 			VariationData colVar;//the variation to which the rowNode is potentially conected in the graph(potential destination)
-			
+
 			if(NbVarExpressionsPerCurrentPos==0){
+
+				//GET RESULTS FOR LAST POSITION
+				if(r>0){
+					//get position Sum of varSums
+					for (int vs=0;vs<varSumValues.length;vs++){
+						posSum+=varSumValues[vs];
+					}
+					System.out.println("                                                 "+posSum+"/"+(varSumValues.length)+" = "+posSum/(varSumValues.length+1));
+					//get var Percentages
+					for (int vs=0;vs<varSumValues.length;vs++){
+						double weightCon=(varSumValues[vs]/posSum);
+						VariationData node=varExprIds.get(varExpMatIndexes.get((r-varSumValues.length+vs)));
+						if(node.setWeightedConnectivity(weightCon, expectedRatio,ratioVariation,nextColour)){//sets the weighted connectivity and returns true if this is an isolated node
+							isolatedNodes.add(node);
+							nextColour++;
+						}
+					}
+				}
+				posSum=0;
+				varSumValuesIndex=0;
+
+				//ACTUALIZE VARS FOR NEW POSITION
 				NbVarExpressionsPerCurrentPos=rowVar.nbVarExpressions;//update the nb of possible var expressions for this position
+				varSumValues=new double[NbVarExpressionsPerCurrentPos];
 				System.out.println(" NEW POS:"+rowVar.pos+" ");
 				firstR=r;//to keep track of the first row of each var group ( the row that defines the first expression of each new variation)
+
 			}
-			
+
 			int rowPos=rowVar.pos;
 			int nbDestNodes;//nb of potential Variations in the next destination Position (2 or 3 depending on the dest Pos has a "-" potential expression or not)
 			int limitC=r;
 			System.out.print(r+" rowVar:"+rowVar.id+" nbExpr="+NbVarExpressionsPerCurrentPos+" ");
 			c=0;
-			
+
 			int nbPosCon=0;//nb of connections (target nodes for current target position) of query node RowVar
 			while(c<firstR){//with the fixed row, move through the columns until r=c
 				nbPosCon=0;//initialize nbPosCon for this target Position
 				nbDestNodes=nbVarExpressionsPerPos[c];
-				
+
 				System.out.print("[");//nbVarExpressionsPerPos[c]+
-				
+
 				while (nbDestNodes>0){
-			
+
 					colVar=varExprIds.get(varExpMatIndexes.get(c));
-					
+
 					if(colVar.pos!=rowPos || ((firstR-c)>0)){// // the second condition is for variants that appear twice in the same position
-						
+
 						if(vcm.varExpMat[r][c].size()>1){
 							nbPosCon++;
 							//System.out.print(" "+colVar.id);
@@ -843,28 +869,28 @@ public class VariationsManager {
 					}
 					c++;
 					nbDestNodes--;
-					
+
 				}
 				//System.out.print(" ]");
 				varSum+=(double)nbPosCon/nbVarExpressionsPerPos[(c-1)];
 				System.out.print(" "+(double)nbPosCon/nbVarExpressionsPerPos[(c-1)]+" ]");
 			}
 			int rr=firstR;//now we fix the column and move through the rest of the rows 
-			
+
 			while (rr<matSize){
 				nbPosCon=0;//nb of connections (target nodes for current target position) of query node RowVar
 				nbDestNodes=nbVarExpressionsPerPos[rr];
 				System.out.print( "(");//nbVarExpressionsPerPos[c]+
 				while (nbDestNodes>0){
 					colVar=varExprIds.get(varExpMatIndexes.get(rr));
-					
+
 					if(colVar.pos!=rowPos || ((rr-c)>=(nbVarExpressionsPerPos[firstR]))){// the second condition is for variants that appear twice in the same position
 						//System.out.print(" "+limitC+"\\"+rr);
 						if(vcm.varExpMat[rr][limitC].size()>1){
 							nbPosCon++;
 							//System.out.print(" "+colVar.id);
 						}
-						
+
 					}else{//Do nothing here( Variant connecting with itself doesn't make sense)
 						System.out.print(" ");//+c+"/"+rr+"#"+nbVarExpressionsPerPos[firstR]
 						for (int k=0;k<colVar.expSignature.length();k++){
@@ -879,20 +905,41 @@ public class VariationsManager {
 				varSum+=(double)nbPosCon/nbVarExpressionsPerPos[(rr-1)];
 				System.out.print(" "+(double)nbPosCon/nbVarExpressionsPerPos[(rr-1)]+" )");//nbVarExpressionsPerPos[]
 			}
-			
+			varSumValues[varSumValuesIndex++]=varSum;
 			System.out.println(" varSum:"+varSum);
-			
+
 			NbVarExpressionsPerCurrentPos--;
 			r++;
-		
 		}
-		
+
+		//last row's result (r ==matsize  doesn't get in the loop)
+		//get position Sum of varsums
+		for (int vs=0;vs<varSumValues.length;vs++){
+			posSum+=varSumValues[vs];
+		}
+		System.out.println("                                                 "+posSum+"/"+(varSumValues.length)+" = "+posSum/(varSumValues.length+1));
+		//get var Percentages
+		for (int vs=0;vs<varSumValues.length;vs++){
+			double weightCon=(varSumValues[vs]/posSum);
+			VariationData node=varExprIds.get(varExpMatIndexes.get((r-varSumValues.length+vs)));
+			if(node.setWeightedConnectivity(weightCon, expectedRatio,ratioVariation,nextColour)){//sets the weighted connectivity and returns true if this is an isolated node
+				isolatedNodes.add(node);
+				nextColour++;
+			}
+		}
+		posSum=0;
+		varSumValuesIndex=0;
+		System.out.println("  isolatedNodes???");
+		for(int in=0;in<isolatedNodes.size();in++){
+			System.out.println("  "+isolatedNodes.get(in).id+isolatedNodes.get(in).colour);
+		}
+
 	}
 
 	public void printVariationReads(int i) {
 
 		Set<Map.Entry<Integer,String>> varEMids = varExpMatIndexes.entrySet();
-		
+
 		int lastPos=0;
 		int currentPos=0;
 		int nbDifVarPerPos=1;
@@ -922,15 +969,15 @@ public class VariationsManager {
 
 			}else	{
 				//System.out.println("   DIFF " +varId+" : "+varReadListSize+ " currentPos: "+currentPos+ " lastPos: "+lastPos+" expr: "+curVar.expSignature);
-				
+
 				sum=varReadListSize;
 				nbDifVarPerPos=1;
 				//System.out.println();
 			}
 
 			lastPos=currentPos;
-		
-			
+
+
 		}
 
 	}

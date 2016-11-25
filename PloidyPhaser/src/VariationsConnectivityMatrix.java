@@ -8,7 +8,6 @@ import java.util.Set;
 
 public class VariationsConnectivityMatrix {
 	ReadList[][]varExpMat;
-	//int [][]connectivityMatrix;
 	int matSize;
 	VariationsManager varMan;
 	//HashMap<String,ArrayList> varReadsHashMap=new HashMap<String,ArrayList> ();//maps each varId to the list of reads that express them
@@ -56,7 +55,7 @@ public class VariationsConnectivityMatrix {
 		int totalWeightPerPos=0;//sum of nb or reads per Variation expressions at the same position(2 or 3 potential expressions depending on the Variation).		
 		int totalConnectivityPerPos=0;//sum of connected nodes 5connectivity degree)  per Variation expressions  (at same position)		
 		int nbOfVarsPerPos=0;//nb of different potential expressions per Position (2 or 3  depending on the Variation).
-		int contigPloidy=(int) PloidyPhaser.ploidies.get(nextVd.name);//get the contig ploidy from first vcf call
+		int contigPloidy=(int) PloidyPhaser.pm.get(nextVd.name);//get the contig ploidy from first vcf call
 		boolean changesPos=false;//if the following variation changes position
 		
 		//variables for dealing with indels positions

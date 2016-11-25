@@ -1,19 +1,12 @@
-import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.PrintWriter;
 import java.io.UnsupportedEncodingException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.Scanner;
 import java.util.stream.Stream;
 
@@ -28,7 +21,8 @@ public class PloidyPhaser {
 	static String vcfFolder = "C://Users//Mel//Documents//BIOINFORMATICS//DELFT_Research//Data//Simulated//PhasingAndVCFs//MOVECHROM1OUT";
 	static List<File> bamPaths = new ArrayList<File>();
 	static HashMap <String,Integer> readIndexes = new HashMap<String,Integer>(16336669);//index of reads
-	static HashMap ploidies = new HashMap();
+	static PloidyManager pm;
+	
 	static List<Path> vcfPaths = new ArrayList<Path>();
 	
 	public static void main(String[] args) {
@@ -36,10 +30,8 @@ public class PloidyPhaser {
 		getFiles();
 		for (int i = 0; i < vcfPaths.size(); i++) {//for each contig, a vcf file is associated
 			try {
-				VCFParser vcfPar = new VCFParser(vcfPaths.get(i).toFile());
+				VCFParser vcfPar=new VCFParser(vcfPaths.get(i).toFile());
 				System.out.println("");
-				//System.out.println("NEXT TO DO ");
-				//System.out.println("Add them to the matrix!! ");
 			} catch (FileNotFoundException e) {
 				e.printStackTrace();
 			} catch (InterruptedException e) {
@@ -56,15 +48,16 @@ public class PloidyPhaser {
 
 		try {
 			// get ploidies
+			pm=new PloidyManager();
 			Scanner sc = new Scanner(new File(ploidyFile));
 			while (sc.hasNextLine()) {
 				// n++;
 				line = sc.nextLine();
 				String[] parts = line.split("\\s+");
-				ploidies.put(parts[0], Integer.parseInt(parts[1]));// key:chromosome
+				pm.put(parts[0], Integer.parseInt(parts[1]));// key:chromosome
 																	// name/value:ploidy
 			}
-
+			sc.close();
 			// get vcf Files
 			Stream<Path> paths = Files.walk(Paths.get(vcfFolder));
 			paths.forEach(filePath -> {
@@ -76,12 +69,14 @@ public class PloidyPhaser {
 					// System.out.println("filepath:"+filePath );
 				}
 			});
+			paths.close();
 			//get bams
 			bamPaths.add(new File("C://Users//Mel//Documents//BIOINFORMATICS//DELFT_Research//ConPADE-master//Simulated_input_bams//sorted_NoClip_200bp.bam"));
 			bamPaths.add(new File("C://Users//Mel//Documents//BIOINFORMATICS//DELFT_Research//ConPADE-master//Simulated_input_bams//sorted_NoClip_500bp.bam"));
 			//getReadIndexes();
 
 			getChr1ReadIndexes();
+			
 
 		} catch (Exception e) {
 			System.err.println("Error reading ploidy estimation file");
@@ -139,8 +134,7 @@ public class PloidyPhaser {
 		try {
 			//Scanner sc = new Scanner(new File("C://Users//Mel//Documents//BIOINFORMATICS//DELFT_Research//ConPADE-master//Simulated_input_bams//chrom1ReadsIndexes.txt"));
 			Scanner sc = new Scanner(new File("C://Users//Mel//Documents//BIOINFORMATICS//DELFT_Research//ConPADE-master//Simulated_input_bams//chrom1_NoClip_ReadsIndexes.txt"));
-			String s;
-			int i;
+
 			while (sc.hasNextLine() ){				
 				readIndexes.put(sc.next(), sc.nextInt());		 
 			}

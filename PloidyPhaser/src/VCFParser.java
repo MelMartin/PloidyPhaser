@@ -10,8 +10,8 @@ import java.util.Scanner;
 public class VCFParser {
 	
 	String header="";//vcf Header
-	
-	//List<VariationData> variations = new ArrayList<VariationData>();
+	String chrom="";//this contig's name (each contig has a vcf)
+	int ploidy=0;
 	String outputCleanFile="" ;
 	File vcfFile;
 	VariationsManager varMan=new VariationsManager(this);
@@ -44,13 +44,11 @@ public class VCFParser {
 		Scanner sc = new Scanner(new File(inputFile));
 
 		int ct = 0;
-		String chrom="";
 		int pos = 0;
 		int svLength;// length of the sv
-		//int end;
-		Boolean isPloidySolved=false;
+	
 		Boolean isVariation=false;
-		int ploidy=0;
+		
 		String ref = "";// reference allele
 		String alt=".";// alternative allele
 		List<String> infoFields=new ArrayList<String>();
@@ -81,11 +79,14 @@ public class VCFParser {
 			
 
 			//GET THE VCF VALUES
-			chrom=sc.next();
+			if(chrom==""){
+				chrom=sc.next();
+			}else sc.next();
+			
+			
 			//solve ploidy (general for all lines)
-			if (!isPloidySolved ){
-				ploidy=(int) PloidyPhaser.ploidies.get(chrom);
-				isPloidySolved=true;
+			if (ploidy==0 ){//ploidy has not yet been solved
+				ploidy=(int) PloidyPhaser.pm.get(chrom);
 			}
 			//solve sample field (general for all lines)
 			if (ploidy==1)sample="1";
