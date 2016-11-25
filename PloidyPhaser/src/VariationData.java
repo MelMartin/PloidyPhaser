@@ -62,8 +62,8 @@ public class VariationData {
 	//returns true if weightedConnectivity corresponds with the expected ratio of an isolated node 
 	public boolean setWeightedConnectivity(double wc, double expectedRatio, double ratioVariation,int nextColor){
 		weightedConnectivity=wc;
-		
-		if(wc>(expectedRatio-ratioVariation) &&  wc<(expectedRatio+ratioVariation)){
+		if(wc>(expectedRatio-ratioVariation) &&  wc<(expectedRatio+ratioVariation)){//if the weight is within expected ratio deviation
+ 			//...then the node is an isolated one	
 			colour=nextColor;
 			return true;
 		}else return false;

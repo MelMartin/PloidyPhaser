@@ -7,7 +7,8 @@ import java.util.Set;
 
 
 public class VariationsConnectivityMatrix {
-	ReadList[][]varExpMat;
+	ReadList[][]varExpReadsMat;//variations Matrix with all reads that connect every two nodes
+	boolean[][]varExpConMat;////simple variations Matrix with all connected two nodes
 	int matSize;
 	VariationsManager varMan;
 	//HashMap<String,ArrayList> varReadsHashMap=new HashMap<String,ArrayList> ();//maps each varId to the list of reads that express them
@@ -16,25 +17,46 @@ public class VariationsConnectivityMatrix {
 	public VariationsConnectivityMatrix (VariationsManager vm,int d) {
 		varMan=vm;
 		matSize=d;
-		varExpMat=new ReadList[d][d];
+		varExpReadsMat=new ReadList[d][d];
+		varExpConMat=new boolean[d][d];
 		for (int r=0;r<d;r++){
 			for (int c=0;c<d;c++){
-				varExpMat[r][c]=new ReadList();
+				varExpReadsMat[r][c]=new ReadList();
+				varExpConMat[r][c]=false;
 			}
 		}
 	}
 	
 	public ReadList getReadList(int r,int c){
 		//System.out.println (" ReadList: "+r+"/"+c);
-		return varExpMat[r][c];
+		return varExpReadsMat[r][c];
+	}
+	
+	public boolean hasConnection(int r,int c){
+		//System.out.println (" hasConnection: "+r+"/"+c+" "+varExpConMat[r][c]);
+	
+		if(r>c)return varExpConMat[r][c];
+		return varExpConMat[r][c];
 	}
 
 	public void addConection(int row, int col, Integer readIndex) {
-		varExpMat[row][col].add(readIndex);
+		varExpReadsMat[row][col].add(readIndex);
+		varExpConMat[row][col]=true;
 	}
 	
 	
+	public void printvarExpConMatrix(int limit){
+		for (int r=0;r<limit;r++){
+			for (int c=0;c<limit;c++){
+				if(varExpConMat[r][c]){
+					System.out.print (" 1");
+				}else System.out.print (" 0");
+				
 
+			}
+			System.out.println ();
+		}
+	}
 
 	public void printMatrix(int limit){
 		for (int r=0;r<limit;r++){
@@ -149,6 +171,7 @@ public class VariationsConnectivityMatrix {
     	}
     	
     	public boolean add(Integer readIndex){
+    		
     		return ReadsIndexes.add(readIndex);
     	}
     	
